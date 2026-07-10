@@ -17,7 +17,7 @@ class Room {
     this.code = code;
     this.hostId = hostId;
     this.players = new Map(); // id -> { id, name, color, ready, score }
-    this.mapId = "open";
+    this.mapId = "maze";
     this.state = "lobby"; // lobby | countdown | playing | roundover
     this.countdown = 0;
     this.countdownTimer = 0;

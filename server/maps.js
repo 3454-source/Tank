@@ -24,29 +24,6 @@ const SPAWNS = [
 ];
 
 const MAPS = {
-  open: {
-    id: "open",
-    name: "오픈 아레나",
-    walls: [
-      ...borderWalls(),
-      seg(350, 300, 550, 300),
-      seg(300, 150, 300, 260),
-      seg(600, 340, 600, 450),
-    ],
-    spawns: SPAWNS,
-  },
-  cross: {
-    id: "cross",
-    name: "교차로",
-    walls: [
-      ...borderWalls(),
-      seg(450, 20, 450, 220),
-      seg(450, 380, 450, 580),
-      seg(20, 300, 380, 300),
-      seg(520, 300, 880, 300),
-    ],
-    spawns: SPAWNS,
-  },
   maze: {
     id: "maze",
     name: "미로",
@@ -63,6 +40,32 @@ const MAPS = {
       seg(200, 400, 200, 580),
       seg(700, 400, 700, 580),
       seg(320, 460, 580, 460),
+    ],
+    spawns: SPAWNS,
+  },
+  plain: {
+    id: "plain",
+    name: "평지",
+    walls: [...borderWalls()],
+    spawns: SPAWNS,
+  },
+  bunker: {
+    id: "bunker",
+    name: "벙커 아레나",
+    walls: [
+      ...borderWalls(),
+      // four symmetric L-shaped bunkers giving cover and flanking lanes
+      seg(230, 160, 230, 260),
+      seg(230, 260, 330, 260),
+      seg(670, 160, 670, 260),
+      seg(570, 260, 670, 260),
+      seg(230, 340, 230, 440),
+      seg(230, 340, 330, 340),
+      seg(670, 340, 670, 440),
+      seg(570, 340, 670, 340),
+      // small cross-shaped cover in the middle of the arena
+      seg(450, 260, 450, 340),
+      seg(410, 300, 490, 300),
     ],
     spawns: SPAWNS,
   },

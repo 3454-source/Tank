@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Tank Trouble Online</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -47,8 +47,14 @@
       <canvas id="gameCanvas" width="900" height="600"></canvas>
       <div id="countdownOverlay" class="overlay hidden"></div>
       <div id="roundOverOverlay" class="overlay hidden"></div>
+      <div id="mobileControls" class="mobile-controls hidden">
+        <div id="joystickZone" class="joystick-zone">
+          <div id="joystickKnob" class="joystick-knob"></div>
+        </div>
+        <button id="fireButton" class="fire-button">발사</button>
+      </div>
     </div>
-    <p class="controls-hint">이동: <b>W A S D</b>　발사: <b>Space</b></p>
+    <p class="controls-hint">이동: <b>W A S D</b>　발사: <b>Space</b>　(모바일: 조이스틱 + 발사 버튼)</p>
   </section>
 
   <script src="/socket.io/socket.io.js"></script>

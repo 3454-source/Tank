@@ -235,7 +235,7 @@
 
     ctx.rotate(t.angle);
 
-    // barrel
+    // barrel (points toward the front, +x)
     ctx.fillStyle = "#20242e";
     ctx.fillRect(0, -3, 22, 6);
 
@@ -246,6 +246,27 @@
     ctx.beginPath();
     ctx.roundRect(-16, -12, 32, 24, 5);
     ctx.fill();
+    ctx.stroke();
+
+    // front nose highlight - armored side, blocks incoming shots
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.beginPath();
+    ctx.moveTo(16, -9);
+    ctx.lineTo(22, 0);
+    ctx.lineTo(16, 9);
+    ctx.closePath();
+    ctx.fill();
+
+    // rear weak-point marker - a hit here is a kill
+    ctx.fillStyle = "#161822";
+    ctx.fillRect(-16, -12, 7, 24);
+    ctx.strokeStyle = "#f1c40f";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-16, -9);
+    ctx.lineTo(-9, -2);
+    ctx.moveTo(-16, 1);
+    ctx.lineTo(-9, 8);
     ctx.stroke();
 
     ctx.restore();
@@ -316,4 +337,131 @@
     Object.keys(keyState).forEach((k) => (keyState[k] = false));
     sendInput();
   });
+
+  // ---------- Mobile touch controls (virtual joystick + fire button) ----------
+  const isTouchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+  const mobileControls = document.getElementById("mobileControls");
+  const joystickZone = document.getElementById("joystickZone");
+  const joystickKnob = document.getElementById("joystickKnob");
+  const fireButton = document.getElementById("fireButton");
+
+  if (isTouchDevice) {
+    mobileControls.classList.remove("hidden");
+
+    const JOY_RADIUS = 50;
+    const JOY_DEADZONE = 0.25;
+    const TURN_DEADZONE = 0.12;
+
+    let joyTouchId = null;
+    let joyCenter = { x: 0, y: 0 };
+    let joyAngle = 0;
+    let joyMag = 0;
+
+    function applyJoystickToKeys() {
+      if (joyTouchId === null || joyMag < JOY_DEADZONE) {
+        keyState.up = false;
+        keyState.down = false;
+        keyState.left = false;
+        keyState.right = false;
+        sendInput();
+        return;
+      }
+      let tankAngle = 0;
+      if (latestState) {
+        const mine = latestState.tanks.find((t) => t.id === myId);
+        if (mine) tankAngle = mine.angle;
+      }
+      let diff = joyAngle - tankAngle;
+      diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+
+      keyState.left = diff < -TURN_DEADZONE;
+      keyState.right = diff > TURN_DEADZONE;
+      if (Math.abs(diff) < Math.PI / 2) {
+        keyState.up = true;
+        keyState.down = false;
+      } else {
+        keyState.up = false;
+        keyState.down = true;
+      }
+      sendInput();
+    }
+
+    function updateJoystick(clientX, clientY) {
+      const dx = clientX - joyCenter.x;
+      const dy = clientY - joyCenter.y;
+      const dist = Math.hypot(dx, dy);
+      const clamped = Math.min(dist, JOY_RADIUS);
+      const angle = Math.atan2(dy, dx);
+      joystickKnob.style.transform = `translate(${Math.cos(angle) * clamped}px, ${Math.sin(angle) * clamped}px)`;
+      joyAngle = angle;
+      joyMag = clamped / JOY_RADIUS;
+      applyJoystickToKeys();
+    }
+
+    function resetJoystick() {
+      joyTouchId = null;
+      joyMag = 0;
+      joystickKnob.style.transform = "translate(0px, 0px)";
+      applyJoystickToKeys();
+    }
+
+    joystickZone.addEventListener(
+      "touchstart",
+      (e) => {
+        e.preventDefault();
+        const t = e.changedTouches[0];
+        joyTouchId = t.identifier;
+        const rect = joystickZone.getBoundingClientRect();
+        joyCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        updateJoystick(t.clientX, t.clientY);
+      },
+      { passive: false }
+    );
+
+    joystickZone.addEventListener(
+      "touchmove",
+      (e) => {
+        e.preventDefault();
+        const t = [...e.changedTouches].find((t) => t.identifier === joyTouchId);
+        if (t) updateJoystick(t.clientX, t.clientY);
+      },
+      { passive: false }
+    );
+
+    function handleJoystickEnd(e) {
+      e.preventDefault();
+      const ended = [...e.changedTouches].some((t) => t.identifier === joyTouchId);
+      if (ended) resetJoystick();
+    }
+    joystickZone.addEventListener("touchend", handleJoystickEnd, { passive: false });
+    joystickZone.addEventListener("touchcancel", handleJoystickEnd, { passive: false });
+
+    fireButton.addEventListener(
+      "touchstart",
+      (e) => {
+        e.preventDefault();
+        keyState.shoot = true;
+        sendInput();
+      },
+      { passive: false }
+    );
+    fireButton.addEventListener(
+      "touchend",
+      (e) => {
+        e.preventDefault();
+        keyState.shoot = false;
+        sendInput();
+      },
+      { passive: false }
+    );
+    fireButton.addEventListener(
+      "touchcancel",
+      (e) => {
+        e.preventDefault();
+        keyState.shoot = false;
+        sendInput();
+      },
+      { passive: false }
+    );
+  }
 })();

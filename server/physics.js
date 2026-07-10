@@ -8,7 +8,6 @@ const MAX_BOUNCES = 4;
 const SHOOT_COOLDOWN_MS = 450;
 const MAX_BULLETS_PER_TANK = 3;
 const BULLET_LIFETIME_MS = 8000;
-const SELF_HIT_GRACE_MS = 150;
 
 function closestPointOnSegment(px, py, x1, y1, x2, y2) {
   const dx = x2 - x1;
@@ -145,11 +144,22 @@ function updateBullet(bullet, dt, walls, wallThick) {
   }
 }
 
-function bulletHitsTank(bullet, tank, now) {
-  if (!tank.alive) return false;
-  if (bullet.ownerId === tank.id && now - bullet.createdAt < SELF_HIT_GRACE_MS) return false;
-  const dist = Math.hypot(bullet.x - tank.x, bullet.y - tank.y);
-  return dist < TANK_RADIUS + BULLET_RADIUS;
+// Returns "none" | "block" | "kill".
+// A bullet never affects the tank that fired it. Otherwise, a hit on the
+// front half (the armored side, facing the barrel) is blocked by the armor,
+// while a hit on the back half is a kill.
+function bulletTankInteraction(bullet, tank) {
+  if (!tank.alive) return "none";
+  if (bullet.ownerId === tank.id) return "none";
+  const dx = bullet.x - tank.x;
+  const dy = bullet.y - tank.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist >= TANK_RADIUS + BULLET_RADIUS) return "none";
+
+  const fx = Math.cos(tank.angle);
+  const fy = Math.sin(tank.angle);
+  const dot = fx * dx + fy * dy;
+  return dot > 0 ? "block" : "kill";
 }
 
 module.exports = {
@@ -162,5 +172,5 @@ module.exports = {
   updateTank,
   tryShoot,
   updateBullet,
-  bulletHitsTank,
+  bulletTankInteraction,
 };

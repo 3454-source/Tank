@@ -21,7 +21,7 @@ function broadcastRoom(room) {
 }
 
 function startGame(room) {
-  const map = MAPS[room.mapId] || MAPS.open;
+  const map = MAPS[room.mapId] || MAPS.maze;
   const tanks = new Map();
   const players = [...room.players.values()];
   players.forEach((p, i) => {
@@ -93,7 +93,7 @@ function endRound(room, winnerId) {
 function updateGame(room, dt) {
   const g = room.game;
   const now = Date.now();
-  const map = MAPS[room.mapId] || MAPS.open;
+  const map = MAPS[room.mapId] || MAPS.maze;
   const walls = map.walls;
 
   for (const tank of g.tanks.values()) {
@@ -112,8 +112,12 @@ function updateGame(room, dt) {
 
   for (const bullet of g.bullets) {
     for (const tank of g.tanks.values()) {
-      if (physics.bulletHitsTank(bullet, tank, now)) {
+      if (bullet.dead) break;
+      const result = physics.bulletTankInteraction(bullet, tank);
+      if (result === "kill") {
         tank.alive = false;
+        bullet.dead = true;
+      } else if (result === "block") {
         bullet.dead = true;
       }
     }
