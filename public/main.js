@@ -164,6 +164,11 @@
   let playersInfo = []; // [{id,name,color}]
   let latestState = null;
 
+  // Fixed-size viewport; the camera pans over the (larger) world instead of
+  // shrinking the whole map down to fit, so the arena can be big without
+  // making tanks tiny on screen.
+  const camera = { x: 0, y: 0 };
+
   socket.on("countdown", (n) => {
     countdownOverlay.classList.remove("hidden");
     countdownOverlay.textContent = n > 0 ? n : "GO!";
@@ -174,8 +179,8 @@
     playersInfo = data.players;
     latestState = null;
     stateBuffer.length = 0;
-    canvas.width = data.worldW;
-    canvas.height = data.worldH;
+    camera.x = 0;
+    camera.y = 0;
     countdownOverlay.classList.add("hidden");
     roundOverOverlay.classList.add("hidden");
     showScreen("game");
@@ -234,7 +239,7 @@
     const bullets = b.bullets.map((bb) => {
       const ab = a.bullets.find((x) => x.id === bb.id);
       if (!ab) return bb;
-      return { id: bb.id, x: lerp(ab.x, bb.x, t), y: lerp(ab.y, bb.y, t) };
+      return { id: bb.id, ownerId: bb.ownerId, x: lerp(ab.x, bb.x, t), y: lerp(ab.y, bb.y, t) };
     });
     return { tanks, bullets };
   }
@@ -262,16 +267,35 @@
     return p ? p.name : "";
   }
 
+  function drawBackgroundGrid(w, h) {
+    ctx.strokeStyle = "#1e2530";
+    ctx.lineWidth = 1;
+    const gridSize = 60;
+    ctx.beginPath();
+    for (let x = 0; x <= w; x += gridSize) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+    }
+    for (let y = 0; y <= h; y += gridSize) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+    }
+    ctx.stroke();
+  }
+
   function drawWalls(walls, thick) {
     ctx.strokeStyle = "#4a5568";
     ctx.lineCap = "round";
     ctx.lineWidth = thick;
+    ctx.shadowColor = "rgba(0, 0, 0, 0.3)";
+    ctx.shadowBlur = 4;
     for (const w of walls) {
       ctx.beginPath();
       ctx.moveTo(w.x1, w.y1);
       ctx.lineTo(w.x2, w.y2);
       ctx.stroke();
     }
+    ctx.shadowBlur = 0;
   }
 
   function drawTank(t) {
@@ -292,6 +316,10 @@
 
     ctx.rotate(t.angle);
 
+    ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 3;
+
     // barrel (points toward the front, +x)
     ctx.fillStyle = "#20242e";
     ctx.fillRect(0, -3, 22, 6);
@@ -304,6 +332,10 @@
     ctx.roundRect(-16, -12, 32, 24, 5);
     ctx.fill();
     ctx.stroke();
+
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
 
     // front nose highlight - armored side, blocks incoming shots
     ctx.fillStyle = "rgba(255,255,255,0.35)";
@@ -330,24 +362,48 @@
   }
 
   function drawBullet(b) {
+    const color = playerColor(b.ownerId);
+    ctx.save();
     ctx.beginPath();
-    ctx.fillStyle = "#ffd166";
-    ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 8;
+    ctx.arc(b.x, b.y, 4.5, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
   }
 
   function render() {
     requestAnimationFrame(render);
     if (!screens.game.classList.contains("active") || !mapData) return;
 
+    const renderState = getRenderState();
+
+    // Follow the local player's tank, clamped so the camera never shows
+    // outside the world bounds.
+    if (renderState) {
+      const myTank = renderState.tanks.find((t) => t.id === myId);
+      if (myTank) {
+        const targetX = myTank.x - canvas.width / 2;
+        const targetY = myTank.y - canvas.height / 2;
+        camera.x = Math.max(0, Math.min(targetX, Math.max(0, mapData.worldW - canvas.width)));
+        camera.y = Math.max(0, Math.min(targetY, Math.max(0, mapData.worldH - canvas.height)));
+      }
+    }
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.translate(-camera.x, -camera.y);
+
+    drawBackgroundGrid(mapData.worldW, mapData.worldH);
     drawWalls(mapData.walls, mapData.wallThick);
 
-    const renderState = getRenderState();
     if (renderState) {
       for (const b of renderState.bullets) drawBullet(b);
       for (const t of renderState.tanks) drawTank(t);
     }
+
+    ctx.restore();
   }
   render();
 

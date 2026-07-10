@@ -64,7 +64,7 @@ function serializeGame(room) {
       angle: t.angle,
       alive: t.alive,
     })),
-    bullets: room.game.bullets.map((b) => ({ id: b.id, x: b.x, y: b.y })),
+    bullets: room.game.bullets.map((b) => ({ id: b.id, x: b.x, y: b.y, ownerId: b.ownerId })),
   };
 }
 
