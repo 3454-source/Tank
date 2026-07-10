@@ -33,6 +33,8 @@ function startGame(room) {
       angle: spawn.angle,
       alive: true,
       lastShotAt: 0,
+      speed: 0,
+      angularVelocity: 0,
     });
   });
   room.game = {
@@ -250,10 +252,7 @@ setInterval(() => {
       }
     } else if (room.state === "playing") {
       updateGame(room, dt);
-      room.broadcastTick = (room.broadcastTick || 0) + 1;
-      if (room.broadcastTick % 2 === 0) {
-        io.to(room.code).emit("state", serializeGame(room));
-      }
+      io.to(room.code).emit("state", serializeGame(room));
     } else if (room.state === "roundover") {
       if (now >= room.roundOverAt) {
         resetToLobby(room);

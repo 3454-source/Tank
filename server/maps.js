@@ -1,27 +1,33 @@
-const WORLD_W = 900;
-const WORLD_H = 600;
-const WALL_THICK = 12;
+// Map layouts are designed on a 900x600 grid for readability, then scaled up
+// uniformly so the arena feels bigger without hand-recomputing coordinates.
+const SCALE = 1.6;
+const DESIGN_W = 900;
+const DESIGN_H = 600;
+
+const WORLD_W = Math.round(DESIGN_W * SCALE);
+const WORLD_H = Math.round(DESIGN_H * SCALE);
+const WALL_THICK = 14;
 
 function seg(x1, y1, x2, y2) {
-  return { x1, y1, x2, y2 };
+  return { x1: x1 * SCALE, y1: y1 * SCALE, x2: x2 * SCALE, y2: y2 * SCALE };
 }
 
 function borderWalls() {
   return [
-    seg(0, 0, WORLD_W, 0),
-    seg(WORLD_W, 0, WORLD_W, WORLD_H),
-    seg(WORLD_W, WORLD_H, 0, WORLD_H),
-    seg(0, WORLD_H, 0, 0),
+    seg(0, 0, DESIGN_W, 0),
+    seg(DESIGN_W, 0, DESIGN_W, DESIGN_H),
+    seg(DESIGN_W, DESIGN_H, 0, DESIGN_H),
+    seg(0, DESIGN_H, 0, 0),
   ];
 }
 
 // Corner spawn points, facing roughly toward the center of the arena.
 const SPAWNS = [
   { x: 70, y: 70, angle: Math.PI / 4 },
-  { x: WORLD_W - 70, y: 70, angle: (Math.PI * 3) / 4 },
-  { x: WORLD_W - 70, y: WORLD_H - 70, angle: (-Math.PI * 3) / 4 },
-  { x: 70, y: WORLD_H - 70, angle: -Math.PI / 4 },
-];
+  { x: DESIGN_W - 70, y: 70, angle: (Math.PI * 3) / 4 },
+  { x: DESIGN_W - 70, y: DESIGN_H - 70, angle: (-Math.PI * 3) / 4 },
+  { x: 70, y: DESIGN_H - 70, angle: -Math.PI / 4 },
+].map((s) => ({ x: s.x * SCALE, y: s.y * SCALE, angle: s.angle }));
 
 const MAPS = {
   maze: {

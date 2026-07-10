@@ -173,14 +173,71 @@
     mapData = data;
     playersInfo = data.players;
     latestState = null;
+    stateBuffer.length = 0;
+    canvas.width = data.worldW;
+    canvas.height = data.worldH;
     countdownOverlay.classList.add("hidden");
     roundOverOverlay.classList.add("hidden");
     showScreen("game");
   });
 
+  const stateBuffer = []; // { t: performance.now(), state } for render interpolation
+  const INTERP_DELAY = 90; // ms
+
   socket.on("state", (state) => {
     latestState = state;
+    stateBuffer.push({ t: performance.now(), state });
+    while (stateBuffer.length > 20) stateBuffer.shift();
   });
+
+  function lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+  function lerpAngle(a, b, t) {
+    const diff = Math.atan2(Math.sin(b - a), Math.cos(b - a));
+    return a + diff * t;
+  }
+
+  function getRenderState() {
+    if (stateBuffer.length === 0) return latestState;
+    if (stateBuffer.length === 1) return stateBuffer[0].state;
+
+    const renderTime = performance.now() - INTERP_DELAY;
+    if (renderTime <= stateBuffer[0].t) return stateBuffer[0].state;
+    const last = stateBuffer[stateBuffer.length - 1];
+    if (renderTime >= last.t) return last.state;
+
+    for (let i = 0; i < stateBuffer.length - 1; i++) {
+      const cur = stateBuffer[i];
+      const next = stateBuffer[i + 1];
+      if (renderTime >= cur.t && renderTime <= next.t) {
+        const span = next.t - cur.t;
+        const t = span > 0 ? (renderTime - cur.t) / span : 0;
+        return interpolateState(cur.state, next.state, t);
+      }
+    }
+    return last.state;
+  }
+
+  function interpolateState(a, b, t) {
+    const tanks = b.tanks.map((bt) => {
+      const at = a.tanks.find((x) => x.id === bt.id);
+      if (!at) return bt;
+      return {
+        id: bt.id,
+        x: lerp(at.x, bt.x, t),
+        y: lerp(at.y, bt.y, t),
+        angle: lerpAngle(at.angle, bt.angle, t),
+        alive: bt.alive,
+      };
+    });
+    const bullets = b.bullets.map((bb) => {
+      const ab = a.bullets.find((x) => x.id === bb.id);
+      if (!ab) return bb;
+      return { id: bb.id, x: lerp(ab.x, bb.x, t), y: lerp(ab.y, bb.y, t) };
+    });
+    return { tanks, bullets };
+  }
 
   socket.on("roundOver", ({ winnerId, winnerName }) => {
     roundOverOverlay.classList.remove("hidden");
@@ -286,9 +343,10 @@
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawWalls(mapData.walls, mapData.wallThick);
 
-    if (latestState) {
-      for (const b of latestState.bullets) drawBullet(b);
-      for (const t of latestState.tanks) drawTank(t);
+    const renderState = getRenderState();
+    if (renderState) {
+      for (const b of renderState.bullets) drawBullet(b);
+      for (const t of renderState.tanks) drawTank(t);
     }
   }
   render();
