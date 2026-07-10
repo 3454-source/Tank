@@ -1,27 +1,17 @@
 const TANK_RADIUS = 16;
 const BULLET_RADIUS = 4;
 
-// Tanks ramp their speed and turn rate toward a target instead of snapping
-// instantly, which is what makes the driving feel smooth rather than jerky.
-const TANK_MAX_SPEED = 210; // px/s forward
-const TANK_MAX_REVERSE_SPEED = 140; // px/s backward
-const TANK_ACCEL = 480; // px/s^2 while accelerating toward a target speed
-const TANK_BRAKE = 640; // px/s^2 while decelerating (releasing keys / reversing)
-const TANK_MAX_ANGULAR_SPEED = 3.0; // rad/s
-const TANK_ANGULAR_ACCEL = 11; // rad/s^2 while turning
-const TANK_ANGULAR_BRAKE = 15; // rad/s^2 while releasing turn keys
+// Movement responds instantly to input (no accel/brake ramp) so driving
+// feels direct rather than floaty.
+const TANK_SPEED = 210; // px/s forward
+const TANK_REVERSE_SPEED = 140; // px/s backward
+const TANK_TURN_SPEED = 3.0; // rad/s
 
 const BULLET_SPEED = 420; // px/s
 const MAX_BOUNCES = 4;
 const SHOOT_COOLDOWN_MS = 450;
 const MAX_BULLETS_PER_TANK = 3;
 const BULLET_LIFETIME_MS = 9000;
-
-function approach(current, target, accel, dt) {
-  if (current < target) return Math.min(current + accel * dt, target);
-  if (current > target) return Math.max(current - accel * dt, target);
-  return current;
-}
 
 function closestPointOnSegment(px, py, x1, y1, x2, y2) {
   const dx = x2 - x1;
@@ -89,25 +79,19 @@ function resolveTankTank(tanks) {
 function updateTank(tank, input, dt, walls, wallThick) {
   if (!tank.alive) return;
   input = input || {};
-  tank.speed = tank.speed || 0;
-  tank.angularVelocity = tank.angularVelocity || 0;
 
-  let targetAngular = 0;
-  if (input.left && !input.right) targetAngular = -TANK_MAX_ANGULAR_SPEED;
-  else if (input.right && !input.left) targetAngular = TANK_MAX_ANGULAR_SPEED;
-  const angularAccel = targetAngular !== 0 ? TANK_ANGULAR_ACCEL : TANK_ANGULAR_BRAKE;
-  tank.angularVelocity = approach(tank.angularVelocity, targetAngular, angularAccel, dt);
-  tank.angle += tank.angularVelocity * dt;
+  let angularVelocity = 0;
+  if (input.left && !input.right) angularVelocity = -TANK_TURN_SPEED;
+  else if (input.right && !input.left) angularVelocity = TANK_TURN_SPEED;
+  tank.angle += angularVelocity * dt;
 
-  let targetSpeed = 0;
-  if (input.up && !input.down) targetSpeed = TANK_MAX_SPEED;
-  else if (input.down && !input.up) targetSpeed = -TANK_MAX_REVERSE_SPEED;
-  const speedAccel = targetSpeed !== 0 ? TANK_ACCEL : TANK_BRAKE;
-  tank.speed = approach(tank.speed, targetSpeed, speedAccel, dt);
+  let speed = 0;
+  if (input.up && !input.down) speed = TANK_SPEED;
+  else if (input.down && !input.up) speed = -TANK_REVERSE_SPEED;
 
-  if (tank.speed !== 0) {
-    tank.x += Math.cos(tank.angle) * tank.speed * dt;
-    tank.y += Math.sin(tank.angle) * tank.speed * dt;
+  if (speed !== 0) {
+    tank.x += Math.cos(tank.angle) * speed * dt;
+    tank.y += Math.sin(tank.angle) * speed * dt;
   }
 
   resolveCircleWalls(tank, TANK_RADIUS, walls, wallThick);

@@ -33,8 +33,6 @@ function startGame(room) {
       angle: spawn.angle,
       alive: true,
       lastShotAt: 0,
-      speed: 0,
-      angularVelocity: 0,
     });
   });
   room.game = {
