@@ -499,14 +499,29 @@
   render();
 
   // ---------- Input ----------
+  // Movement is absolute/screen-relative: WASD (or the joystick) directly
+  // sets a direction vector, and the tank instantly faces that direction.
+  // No more "rotate, then drive forward relative to facing".
   const keyState = { up: false, down: false, left: false, right: false, shoot: false };
+  let joyMoveX = 0;
+  let joyMoveY = 0;
+  let joyActive = false;
   let lastSent = "";
 
   function sendInput() {
-    const s = JSON.stringify(keyState);
+    let moveX, moveY;
+    if (joyActive) {
+      moveX = joyMoveX;
+      moveY = joyMoveY;
+    } else {
+      moveX = (keyState.right ? 1 : 0) - (keyState.left ? 1 : 0);
+      moveY = (keyState.down ? 1 : 0) - (keyState.up ? 1 : 0);
+    }
+    const input = { moveX, moveY, shoot: keyState.shoot };
+    const s = JSON.stringify(input);
     if (s !== lastSent) {
       lastSent = s;
-      socket.emit("input", keyState);
+      socket.emit("input", input);
     }
   }
 
@@ -554,42 +569,10 @@
     mobileControls.classList.remove("hidden");
 
     const JOY_RADIUS = 50;
-    const JOY_DEADZONE = 0.25;
-    const TURN_DEADZONE = 0.12;
+    const JOY_DEADZONE = 0.15;
 
     let joyTouchId = null;
     let joyCenter = { x: 0, y: 0 };
-    let joyAngle = 0;
-    let joyMag = 0;
-
-    function applyJoystickToKeys() {
-      if (joyTouchId === null || joyMag < JOY_DEADZONE) {
-        keyState.up = false;
-        keyState.down = false;
-        keyState.left = false;
-        keyState.right = false;
-        sendInput();
-        return;
-      }
-      let tankAngle = 0;
-      if (latestState) {
-        const mine = latestState.tanks.find((t) => t.id === myId);
-        if (mine) tankAngle = mine.angle;
-      }
-      let diff = joyAngle - tankAngle;
-      diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-
-      keyState.left = diff < -TURN_DEADZONE;
-      keyState.right = diff > TURN_DEADZONE;
-      if (Math.abs(diff) < Math.PI / 2) {
-        keyState.up = true;
-        keyState.down = false;
-      } else {
-        keyState.up = false;
-        keyState.down = true;
-      }
-      sendInput();
-    }
 
     function updateJoystick(clientX, clientY) {
       const dx = clientX - joyCenter.x;
@@ -597,17 +580,30 @@
       const dist = Math.hypot(dx, dy);
       const clamped = Math.min(dist, JOY_RADIUS);
       const angle = Math.atan2(dy, dx);
-      joystickKnob.style.transform = `translate(${Math.cos(angle) * clamped}px, ${Math.sin(angle) * clamped}px)`;
-      joyAngle = angle;
-      joyMag = clamped / JOY_RADIUS;
-      applyJoystickToKeys();
+      const kx = Math.cos(angle) * clamped;
+      const ky = Math.sin(angle) * clamped;
+      joystickKnob.style.transform = `translate(${kx}px, ${ky}px)`;
+
+      const mag = clamped / JOY_RADIUS;
+      if (mag < JOY_DEADZONE) {
+        joyActive = false;
+        joyMoveX = 0;
+        joyMoveY = 0;
+      } else {
+        joyActive = true;
+        joyMoveX = kx / JOY_RADIUS;
+        joyMoveY = ky / JOY_RADIUS;
+      }
+      sendInput();
     }
 
     function resetJoystick() {
       joyTouchId = null;
-      joyMag = 0;
+      joyActive = false;
+      joyMoveX = 0;
+      joyMoveY = 0;
       joystickKnob.style.transform = "translate(0px, 0px)";
-      applyJoystickToKeys();
+      sendInput();
     }
 
     joystickZone.addEventListener(

@@ -209,11 +209,11 @@ io.on("connection", (socket) => {
   socket.on("input", (inp) => {
     const room = getMyRoom(socket);
     if (!room || !room.game) return;
+    const moveX = Number(inp && inp.moveX);
+    const moveY = Number(inp && inp.moveY);
     room.game.inputs.set(socket.id, {
-      up: !!(inp && inp.up),
-      down: !!(inp && inp.down),
-      left: !!(inp && inp.left),
-      right: !!(inp && inp.right),
+      moveX: Number.isFinite(moveX) ? moveX : 0,
+      moveY: Number.isFinite(moveY) ? moveY : 0,
       shoot: !!(inp && inp.shoot),
     });
   });

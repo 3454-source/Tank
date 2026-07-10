@@ -1,12 +1,13 @@
 const TANK_RADIUS = 22;
 const BULLET_RADIUS = 5;
 
-// Movement responds instantly to input (no accel/brake ramp) so driving
-// feels direct rather than floaty. Speed/fire-rate/bullet-speed are base
+// Movement is absolute/screen-relative: the input vector directly IS the
+// move direction, and the tank instantly faces that direction - no more
+// "rotate in place, then drive forward relative to facing" controls, which
+// is what made moving feel indirect. Speed/fire-rate/bullet-speed are base
 // values that the room host can scale via per-room multipliers.
-const BASE_TANK_SPEED = 210; // px/s forward
-const BASE_TANK_REVERSE_SPEED = 140; // px/s backward
-const TANK_TURN_SPEED = 3.0; // rad/s
+const BASE_TANK_SPEED = 210; // px/s, same in every direction
+const MOVE_DEADZONE = 0.1;
 
 const BASE_BULLET_SPEED = 420; // px/s
 const MAX_BOUNCES = 4;
@@ -82,18 +83,16 @@ function updateTank(tank, input, dt, walls, wallThick, speedMult = 1) {
   if (!tank.alive) return;
   input = input || {};
 
-  let angularVelocity = 0;
-  if (input.left && !input.right) angularVelocity = -TANK_TURN_SPEED;
-  else if (input.right && !input.left) angularVelocity = TANK_TURN_SPEED;
-  tank.angle += angularVelocity * dt;
-
-  let speed = 0;
-  if (input.up && !input.down) speed = BASE_TANK_SPEED * speedMult;
-  else if (input.down && !input.up) speed = -BASE_TANK_REVERSE_SPEED * speedMult;
-
-  if (speed !== 0) {
-    tank.x += Math.cos(tank.angle) * speed * dt;
-    tank.y += Math.sin(tank.angle) * speed * dt;
+  const mx = Number(input.moveX) || 0;
+  const my = Number(input.moveY) || 0;
+  const mag = Math.hypot(mx, my);
+  if (mag > MOVE_DEADZONE) {
+    const nx = mx / mag;
+    const ny = my / mag;
+    tank.angle = Math.atan2(ny, nx);
+    const speed = BASE_TANK_SPEED * speedMult * Math.min(1, mag);
+    tank.x += nx * speed * dt;
+    tank.y += ny * speed * dt;
   }
 
   resolveCircleWalls(tank, TANK_RADIUS, walls, wallThick);

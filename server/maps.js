@@ -39,19 +39,19 @@ const MAPS = {
   maze: {
     id: "maze",
     name: "미로",
+    // Every interior wall here is a standalone floating bar that never
+    // touches another wall or the border, so there is always room to go
+    // around it - this guarantees the map can't accidentally wall off a
+    // pocket the way overlapping/interlocking segments previously did.
     walls: [
       ...borderWalls(),
-      seg(200, 20, 200, 200),
-      seg(200, 200, 400, 200),
-      seg(700, 20, 700, 200),
-      seg(500, 200, 700, 200),
-      seg(100, 320, 320, 320),
-      seg(580, 320, 800, 320),
-      seg(350, 150, 350, 450),
-      seg(550, 150, 550, 450),
-      seg(200, 400, 200, 580),
-      seg(700, 400, 700, 580),
-      seg(320, 460, 580, 460),
+      seg(230, 160, 230, 320),
+      seg(670, 160, 670, 320),
+      seg(230, 400, 230, 540),
+      seg(670, 400, 670, 540),
+      seg(350, 250, 550, 250),
+      seg(350, 450, 550, 450),
+      seg(450, 320, 450, 380),
     ],
     spawns: SPAWNS,
   },
