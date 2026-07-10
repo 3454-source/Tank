@@ -4,8 +4,8 @@ const http = require("http");
 const { Server } = require("socket.io");
 
 const { RoomManager } = require("./rooms");
-const { MAPS, MAP_LIST, WORLD_W, WORLD_H, WALL_THICK } = require("./maps");
-const physics = require("./physics");
+const { GAMES, GAME_LIST } = require("./games/registry");
+const { MAP_LIST, MAPS } = require("./maps");
 
 const app = express();
 app.use(express.static(path.join(__dirname, "..", "public")));
@@ -16,60 +16,20 @@ const io = new Server(server, { cors: { origin: "*" } });
 const roomManager = new RoomManager();
 const socketRoom = new Map(); // socket.id -> room code
 
+function currentGame(room) {
+  return GAMES[room.gameId] || GAMES.tank;
+}
+
 function broadcastRoom(room) {
   io.to(room.code).emit("room", room.toJSON());
 }
 
 function startGame(room) {
-  const map = MAPS[room.mapId] || MAPS.maze;
-  const maxLives = room.settings.maxLives;
-  const tanks = new Map();
-  const players = [...room.players.values()];
-  players.forEach((p, i) => {
-    const spawn = map.spawns[i % map.spawns.length];
-    tanks.set(p.id, {
-      id: p.id,
-      x: spawn.x,
-      y: spawn.y,
-      angle: spawn.angle,
-      alive: true,
-      lastShotAt: 0,
-      lives: maxLives,
-    });
-  });
-  room.game = {
-    tanks,
-    bullets: [],
-    nextBulletId: 1,
-    inputs: new Map(),
-  };
+  const game = currentGame(room);
   room.state = "playing";
   room.countdownStarted = false;
-  io.to(room.code).emit("gameStart", {
-    mapId: map.id,
-    walls: map.walls,
-    worldW: WORLD_W,
-    worldH: WORLD_H,
-    wallThick: WALL_THICK,
-    tankRadius: physics.TANK_RADIUS,
-    bulletRadius: physics.BULLET_RADIUS,
-    maxLives,
-    players: players.map((p) => ({ id: p.id, name: p.name, color: p.color })),
-  });
-}
-
-function serializeGame(room) {
-  return {
-    tanks: [...room.game.tanks.values()].map((t) => ({
-      id: t.id,
-      x: t.x,
-      y: t.y,
-      angle: t.angle,
-      alive: t.alive,
-      lives: t.lives,
-    })),
-    bullets: room.game.bullets.map((b) => ({ id: b.id, x: b.x, y: b.y, ownerId: b.ownerId })),
-  };
+  const payload = game.start(room);
+  io.to(room.code).emit("gameStart", { gameId: game.id, ...payload });
 }
 
 function resetToLobby(room) {
@@ -81,7 +41,7 @@ function resetToLobby(room) {
   broadcastRoom(room);
 }
 
-function endRound(room, winnerId) {
+function endRound(room, winnerId, extra) {
   room.state = "roundover";
   room.roundOverAt = Date.now() + 4000;
   room.lastWinner = winnerId;
@@ -93,64 +53,29 @@ function endRound(room, winnerId) {
     winnerId,
     winnerName: winnerId ? (room.players.get(winnerId) || {}).name : null,
     scores: [...room.players.values()].map((p) => ({ id: p.id, name: p.name, score: p.score })),
+    ...extra,
   });
 }
 
-function updateGame(room, dt) {
-  const g = room.game;
-  const now = Date.now();
-  const map = MAPS[room.mapId] || MAPS.maze;
-  const walls = map.walls;
-
-  const { speedMult, fireRateMult, bulletSpeedMult } = room.settings;
-  for (const tank of g.tanks.values()) {
-    const input = g.inputs.get(tank.id);
-    physics.updateTank(tank, input, dt, walls, WALL_THICK, speedMult);
-    g.nextBulletId = physics.tryShoot(tank, input, now, g.bullets, g.nextBulletId, fireRateMult, bulletSpeedMult);
-  }
-  physics.resolveTankTank([...g.tanks.values()]);
-
-  for (const bullet of g.bullets) {
-    physics.updateBullet(bullet, dt, walls, WALL_THICK);
-  }
-  g.bullets = g.bullets.filter(
-    (b) => b.bounces < physics.MAX_BOUNCES && now - b.createdAt < physics.BULLET_LIFETIME_MS
-  );
-
-  for (const bullet of g.bullets) {
-    for (const tank of g.tanks.values()) {
-      if (bullet.dead) break;
-      const result = physics.bulletTankInteraction(bullet, tank);
-      if (result === "hit") {
-        tank.lives -= 1;
-        if (tank.lives <= 0) tank.alive = false;
-        bullet.dead = true;
-      } else if (result === "block") {
-        bullet.dead = true;
-      }
-    }
-  }
-  g.bullets = g.bullets.filter((b) => !b.dead);
-
-  const alive = [...g.tanks.values()].filter((t) => t.alive);
-  if (g.tanks.size >= 2 && alive.length <= 1) {
-    endRound(room, alive.length === 1 ? alive[0].id : null);
-  }
-}
-
 io.on("connection", (socket) => {
-  socket.on("createRoom", ({ name } = {}) => {
-    const room = roomManager.createRoom(socket.id, sanitizeName(name));
+  socket.on("createRoom", ({ name, code } = {}) => {
+    const { room, error } = roomManager.createRoom(socket.id, sanitizeName(name), code);
+    if (error) {
+      socket.emit("joinError", error);
+      return;
+    }
     socket.join(room.code);
     socketRoom.set(socket.id, room.code);
-    socket.emit("joined", { code: room.code, mapList: MAP_LIST });
+    socket.emit("joined", { code: room.code, mapList: MAP_LIST, gameList: GAME_LIST });
     broadcastRoom(room);
   });
 
   socket.on("startPractice", ({ name } = {}) => {
     leaveRoom(socket);
-    const room = roomManager.createRoom(socket.id, sanitizeName(name));
+    const { room, error } = roomManager.createRoom(socket.id, sanitizeName(name));
+    if (error) return;
     room.isPractice = true;
+    room.gameId = "tank";
     socket.join(room.code);
     socketRoom.set(socket.id, room.code);
     startGame(room);
@@ -173,7 +98,7 @@ io.on("connection", (socket) => {
     room.addPlayer(socket.id, sanitizeName(name));
     socket.join(room.code);
     socketRoom.set(socket.id, room.code);
-    socket.emit("joined", { code: room.code, mapList: MAP_LIST });
+    socket.emit("joined", { code: room.code, mapList: MAP_LIST, gameList: GAME_LIST });
     broadcastRoom(room);
   });
 
@@ -187,11 +112,22 @@ io.on("connection", (socket) => {
     broadcastRoom(room);
   });
 
+  socket.on("setGame", (gameId) => {
+    const room = getMyRoom(socket);
+    if (!room) return;
+    if (room.hostId !== socket.id) return;
+    if (room.state !== "lobby") return;
+    if (!GAMES[gameId]) return;
+    room.setGame(gameId);
+    broadcastRoom(room);
+  });
+
   socket.on("setMap", (mapId) => {
     const room = getMyRoom(socket);
     if (!room) return;
     if (room.hostId !== socket.id) return;
     if (room.state !== "lobby") return;
+    if (!currentGame(room).usesMap) return;
     if (!MAPS[mapId]) return;
     room.mapId = mapId;
     broadcastRoom(room);
@@ -202,20 +138,24 @@ io.on("connection", (socket) => {
     if (!room) return;
     if (room.hostId !== socket.id) return;
     if (room.state !== "lobby") return;
-    room.setSettings(settings);
+    room.setSettings(room.gameId, settings);
     broadcastRoom(room);
   });
 
   socket.on("input", (inp) => {
     const room = getMyRoom(socket);
     if (!room || !room.game) return;
-    const moveX = Number(inp && inp.moveX);
-    const moveY = Number(inp && inp.moveY);
-    room.game.inputs.set(socket.id, {
-      moveX: Number.isFinite(moveX) ? moveX : 0,
-      moveY: Number.isFinite(moveY) ? moveY : 0,
-      shoot: !!(inp && inp.shoot),
-    });
+    const game = currentGame(room);
+    if (game.onInput) game.onInput(socket.id, room, inp);
+  });
+
+  socket.on("gameAction", (data) => {
+    const room = getMyRoom(socket);
+    if (!room || !room.game) return;
+    const game = currentGame(room);
+    if (!game.onAction) return;
+    const ctx = { now: Date.now(), io, endRound: (winnerId, extra) => endRound(room, winnerId, extra) };
+    game.onAction(socket.id, room, data, ctx);
   });
 
   socket.on("leaveRoom", () => leaveRoom(socket));
@@ -275,8 +215,12 @@ setInterval(() => {
         }
       }
     } else if (room.state === "playing") {
-      updateGame(room, dt);
-      io.to(room.code).emit("state", serializeGame(room));
+      const game = currentGame(room);
+      const ctx = { now, dt, io, endRound: (winnerId, extra) => endRound(room, winnerId, extra) };
+      if (game.tick) game.tick(room, ctx);
+      if (room.state === "playing" && game.realtime && game.serialize) {
+        io.to(room.code).emit("state", game.serialize(room));
+      }
     } else if (room.state === "roundover") {
       if (now >= room.roundOverAt) {
         resetToLobby(room);
@@ -287,5 +231,5 @@ setInterval(() => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Tank Trouble Online server listening on port ${PORT}`);
+  console.log(`미니게임 server listening on port ${PORT}`);
 });

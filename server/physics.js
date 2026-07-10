@@ -49,8 +49,10 @@ function resolveCircleWalls(pos, radius, walls, wallThick) {
   }
 }
 
-function resolveTankTank(tanks) {
-  const list = tanks.filter((t) => t.alive);
+// Generic circle-vs-circle separation, reused by any game with multiple
+// moving entities (tanks, sword fighters, ...).
+function resolveEntityCollisions(entities, radius = TANK_RADIUS) {
+  const list = entities.filter((e) => e.alive);
   for (let i = 0; i < list.length; i++) {
     for (let j = i + 1; j < list.length; j++) {
       const a = list[i];
@@ -58,7 +60,7 @@ function resolveTankTank(tanks) {
       let dx = b.x - a.x;
       let dy = b.y - a.y;
       let dist = Math.hypot(dx, dy);
-      const minDist = TANK_RADIUS * 2;
+      const minDist = radius * 2;
       if (dist < minDist) {
         if (dist < 1e-6) {
           dx = 1;
@@ -78,8 +80,10 @@ function resolveTankTank(tanks) {
   }
 }
 
-function updateTank(tank, input, dt, walls, wallThick, speedMult = 1) {
-  if (!tank.alive) return;
+// Generic absolute-direction movement, reused by any game where an entity
+// (tank, sword fighter, ...) moves and instantly faces the input vector.
+function updateMovement(entity, input, dt, walls, wallThick, speedMult = 1, radius = TANK_RADIUS) {
+  if (!entity.alive) return;
   input = input || {};
 
   const mx = Number(input.moveX) || 0;
@@ -88,13 +92,13 @@ function updateTank(tank, input, dt, walls, wallThick, speedMult = 1) {
   if (mag > MOVE_DEADZONE) {
     const nx = mx / mag;
     const ny = my / mag;
-    tank.angle = Math.atan2(ny, nx);
+    entity.angle = Math.atan2(ny, nx);
     const speed = BASE_TANK_SPEED * speedMult * Math.min(1, mag);
-    tank.x += nx * speed * dt;
-    tank.y += ny * speed * dt;
+    entity.x += nx * speed * dt;
+    entity.y += ny * speed * dt;
   }
 
-  resolveCircleWalls(tank, TANK_RADIUS, walls, wallThick);
+  resolveCircleWalls(entity, radius, walls, wallThick);
 }
 
 function tryShoot(tank, input, now, bullets, nextBulletId, fireRateMult = 1, bulletSpeedMult = 1) {
@@ -175,8 +179,8 @@ module.exports = {
   MAX_BOUNCES,
   BULLET_LIFETIME_MS,
   resolveCircleWalls,
-  resolveTankTank,
-  updateTank,
+  resolveEntityCollisions,
+  updateMovement,
   tryShoot,
   updateBullet,
   bulletTankInteraction,

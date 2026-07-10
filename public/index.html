@@ -3,29 +3,30 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>Tank Trouble Online</title>
+  <title>미니게임</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
   <section id="screen-home" class="screen active">
-    <h1>🎮 Tank Trouble Online</h1>
+    <h1>🎮 미니게임</h1>
     <div class="card">
       <label for="nickname">닉네임</label>
       <input id="nickname" maxlength="12" placeholder="닉네임을 입력하세요" autocomplete="off" />
 
       <div class="row">
-        <input id="joinCode" maxlength="4" placeholder="초대 코드" autocomplete="off" style="text-transform:uppercase" />
+        <input id="joinCode" maxlength="8" placeholder="초대 코드" autocomplete="off" style="text-transform:uppercase" />
         <button id="btnJoin">참가하기</button>
       </div>
 
       <div class="divider">또는</div>
 
+      <input id="customCode" maxlength="8" placeholder="원하는 초대 코드 (선택사항)" autocomplete="off" style="text-transform:uppercase" />
       <button id="btnCreate" class="primary">방 만들기</button>
 
       <div class="divider">또는</div>
 
-      <button id="btnPractice">🎯 혼자 연습하기</button>
+      <button id="btnPractice">🎯 탱크 혼자 연습하기</button>
     </div>
     <p id="homeError" class="error"></p>
   </section>
@@ -34,29 +35,19 @@
     <h2>초대 코드: <span id="roomCode">----</span> <button id="btnCopy" title="복사">복사</button></h2>
     <div id="playerList" class="player-list"></div>
 
-    <div class="map-select">
-      <h3>맵 선택</h3>
+    <div class="settings-panel">
+      <h3>🕹️ 미니게임 선택 (방장 전용)</h3>
+      <div id="gameButtons" class="map-buttons"></div>
+    </div>
+
+    <div id="mapSelect" class="settings-panel hidden">
+      <h3>🗺️ 맵 선택 (방장 전용)</h3>
       <div id="mapButtons" class="map-buttons"></div>
     </div>
 
-    <div class="settings-panel">
-      <h3>⚙️ 게임 설정 (방장 전용)</h3>
-      <div class="setting-row">
-        <label><span>탱크 속도</span><span id="valSpeed">100%</span></label>
-        <input type="range" id="setSpeed" min="50" max="200" value="100" step="5" />
-      </div>
-      <div class="setting-row">
-        <label><span>연사 속도</span><span id="valFireRate">100%</span></label>
-        <input type="range" id="setFireRate" min="50" max="250" value="100" step="5" />
-      </div>
-      <div class="setting-row">
-        <label><span>총알 속도</span><span id="valBulletSpeed">100%</span></label>
-        <input type="range" id="setBulletSpeed" min="50" max="200" value="100" step="5" />
-      </div>
-      <div class="setting-row">
-        <label><span>탱크 목숨</span><span id="valLives">1</span></label>
-        <input type="range" id="setLives" min="1" max="20" value="1" step="1" />
-      </div>
+    <div id="gameSettingsPanel" class="settings-panel hidden">
+      <h3 id="gameSettingsTitle">⚙️ 게임 설정 (방장 전용)</h3>
+      <div id="gameSettingsRows"></div>
     </div>
 
     <div class="settings-panel">
@@ -75,8 +66,28 @@
   </section>
 
   <section id="screen-game" class="screen">
-    <div class="game-wrap">
-      <canvas id="gameCanvas" width="900" height="600"></canvas>
+    <div class="game-area">
+      <div id="gameView-canvas" class="game-wrap">
+        <canvas id="gameCanvas" width="900" height="600"></canvas>
+      </div>
+
+      <div id="gameView-reaction" class="minigame-view hidden">
+        <div id="reactionBox" class="reaction-box">대기 중...</div>
+        <p class="minigame-hint">화면을 클릭하거나 <b>Space</b>를 누르세요</p>
+      </div>
+
+      <div id="gameView-updown" class="minigame-view hidden">
+        <div class="updown-panel">
+          <p>1 ~ <b id="updownMax">100</b> 사이의 숫자를 맞춰보세요!</p>
+          <div class="row">
+            <input type="number" id="updownInput" placeholder="숫자 입력" />
+            <button id="updownSubmit" class="primary">추측!</button>
+          </div>
+          <p id="updownFeedback" class="status"></p>
+          <div id="updownHistory" class="updown-history"></div>
+        </div>
+      </div>
+
       <div id="countdownOverlay" class="overlay hidden"></div>
       <div id="roundOverOverlay" class="overlay hidden"></div>
       <button id="btnExitPractice" class="practice-exit hidden">연습 종료</button>
@@ -88,7 +99,7 @@
         <button id="fireButton" class="fire-button">발사</button>
       </div>
     </div>
-    <p class="controls-hint">이동: <b>W A S D</b>　발사: <b>Space</b>　(모바일: 조이스틱 + 발사 버튼, 좌상단 ⛶ 버튼으로 전체화면)</p>
+    <p class="controls-hint" id="controlsHint">이동: <b>W A S D</b>　발사: <b>Space</b>　(모바일: 조이스틱 + 발사 버튼, 좌상단 ⛶ 버튼으로 전체화면)</p>
   </section>
 
   <script src="/socket.io/socket.io.js"></script>

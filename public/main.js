@@ -15,6 +15,7 @@
   // ---------- Home screen ----------
   const nicknameInput = document.getElementById("nickname");
   const joinCodeInput = document.getElementById("joinCode");
+  const customCodeInput = document.getElementById("customCode");
   const btnJoin = document.getElementById("btnJoin");
   const btnCreate = document.getElementById("btnCreate");
   const btnPractice = document.getElementById("btnPractice");
@@ -30,7 +31,8 @@
   btnCreate.addEventListener("click", () => {
     homeError.textContent = "";
     localStorage.setItem("tt_nickname", getName());
-    socket.emit("createRoom", { name: getName() });
+    const code = customCodeInput.value.trim();
+    socket.emit("createRoom", { name: getName(), code: code || undefined });
   });
 
   btnJoin.addEventListener("click", () => {
@@ -59,34 +61,35 @@
   const roomCodeEl = document.getElementById("roomCode");
   const btnCopy = document.getElementById("btnCopy");
   const playerListEl = document.getElementById("playerList");
+  const gameButtonsEl = document.getElementById("gameButtons");
+  const mapSelectEl = document.getElementById("mapSelect");
   const mapButtonsEl = document.getElementById("mapButtons");
+  const gameSettingsPanel = document.getElementById("gameSettingsPanel");
+  const gameSettingsTitle = document.getElementById("gameSettingsTitle");
+  const gameSettingsRows = document.getElementById("gameSettingsRows");
   const btnReady = document.getElementById("btnReady");
   const btnLeave = document.getElementById("btnLeave");
   const roomStatus = document.getElementById("roomStatus");
 
-  const elSpeed = document.getElementById("setSpeed");
-  const elFireRate = document.getElementById("setFireRate");
-  const elBulletSpeed = document.getElementById("setBulletSpeed");
-  const elLives = document.getElementById("setLives");
-  const valSpeed = document.getElementById("valSpeed");
-  const valFireRate = document.getElementById("valFireRate");
-  const valBulletSpeed = document.getElementById("valBulletSpeed");
-  const valLives = document.getElementById("valLives");
-
   let myId = null;
   let currentRoom = null;
   let mapList = [];
+  let gameList = [];
   let iAmReady = false;
   let isPracticeMode = false;
+  let currentGameId = "tank";
+  let lastRenderedSettingsGameId = null;
 
   socket.on("connect", () => {
     myId = socket.id;
   });
 
-  socket.on("joined", ({ code, mapList: ml }) => {
+  socket.on("joined", ({ code, mapList: ml, gameList: gl }) => {
     mapList = ml || [];
+    gameList = gl || [];
     roomCodeEl.textContent = code;
     renderMapButtons();
+    renderGameButtons();
     showScreen("room");
   });
 
@@ -120,6 +123,24 @@
     showScreen("home");
   });
 
+  function findGameDef(id) {
+    return gameList.find((g) => g.id === id);
+  }
+
+  function renderGameButtons() {
+    gameButtonsEl.innerHTML = "";
+    gameList.forEach((g) => {
+      const b = document.createElement("button");
+      b.textContent = g.name;
+      b.dataset.gameId = g.id;
+      b.addEventListener("click", () => {
+        if (!currentRoom || currentRoom.hostId !== myId) return;
+        socket.emit("setGame", g.id);
+      });
+      gameButtonsEl.appendChild(b);
+    });
+  }
+
   function renderMapButtons() {
     mapButtonsEl.innerHTML = "";
     mapList.forEach((m) => {
@@ -135,34 +156,52 @@
     });
   }
 
-  function updateSettingLabels() {
-    valSpeed.textContent = elSpeed.value + "%";
-    valFireRate.textContent = elFireRate.value + "%";
-    valBulletSpeed.textContent = elBulletSpeed.value + "%";
-    valLives.textContent = elLives.value;
+  function updateSettingRowLabel(el) {
+    const valEl = el.closest(".setting-row").querySelector(".val");
+    valEl.textContent = el.value + (el.dataset.unit || "");
   }
-  updateSettingLabels();
+
+  function renderGameSettings(gameId) {
+    const def = findGameDef(gameId);
+    gameSettingsRows.innerHTML = "";
+    if (!def || !def.settingsSchema || def.settingsSchema.length === 0) {
+      gameSettingsPanel.classList.add("hidden");
+      return;
+    }
+    gameSettingsPanel.classList.remove("hidden");
+    gameSettingsTitle.textContent = `⚙️ ${def.name} 설정 (방장 전용)`;
+    def.settingsSchema.forEach((field) => {
+      const row = document.createElement("div");
+      row.className = "setting-row";
+      row.innerHTML =
+        `<label><span>${field.label}</span><span class="val"></span></label>` +
+        `<input type="range" min="${field.min}" max="${field.max}" step="${field.step}" value="${field.default}" data-key="${field.key}" data-unit="${field.unit}" />`;
+      gameSettingsRows.appendChild(row);
+    });
+    [...gameSettingsRows.querySelectorAll("input[type=range]")].forEach((el) => {
+      updateSettingRowLabel(el);
+      el.addEventListener("input", () => {
+        updateSettingRowLabel(el);
+        emitSettings();
+      });
+    });
+  }
 
   function emitSettings() {
     if (!currentRoom || currentRoom.hostId !== myId) return;
-    socket.emit("setSettings", {
-      speedMult: Number(elSpeed.value) / 100,
-      fireRateMult: Number(elFireRate.value) / 100,
-      bulletSpeedMult: Number(elBulletSpeed.value) / 100,
-      maxLives: Number(elLives.value),
+    const settings = {};
+    [...gameSettingsRows.querySelectorAll("input[type=range]")].forEach((el) => {
+      settings[el.dataset.key] = Number(el.value);
     });
+    socket.emit("setSettings", settings);
   }
-  [elSpeed, elFireRate, elBulletSpeed, elLives].forEach((el) => {
-    el.addEventListener("input", () => {
-      updateSettingLabels();
-      emitSettings();
-    });
-  });
 
   socket.on("room", (room) => {
     currentRoom = room;
+    currentGameId = room.gameId;
     const me = room.players.find((p) => p.id === myId);
     iAmReady = me ? me.ready : false;
+    const isHost = room.hostId === myId;
 
     playerListEl.innerHTML = "";
     room.players.forEach((p) => {
@@ -182,24 +221,35 @@
       playerListEl.appendChild(chip);
     });
 
-    [...mapButtonsEl.children].forEach((b) => {
-      b.classList.toggle("selected", b.dataset.mapId === room.mapId);
-      b.disabled = room.hostId !== myId;
+    [...gameButtonsEl.children].forEach((b) => {
+      b.classList.toggle("selected", b.dataset.gameId === room.gameId);
+      b.disabled = !isHost;
     });
 
-    const isHost = room.hostId === myId;
-    elSpeed.disabled = !isHost;
-    elFireRate.disabled = !isHost;
-    elBulletSpeed.disabled = !isHost;
-    elLives.disabled = !isHost;
-    const settingsEls = [elSpeed, elFireRate, elBulletSpeed, elLives];
-    if (room.settings && !settingsEls.includes(document.activeElement)) {
-      elSpeed.value = Math.round(room.settings.speedMult * 100);
-      elFireRate.value = Math.round(room.settings.fireRateMult * 100);
-      elBulletSpeed.value = Math.round(room.settings.bulletSpeedMult * 100);
-      elLives.value = room.settings.maxLives;
-      updateSettingLabels();
+    const def = findGameDef(room.gameId);
+    const usesMap = def ? def.usesMap : true;
+    mapSelectEl.classList.toggle("hidden", !usesMap);
+    [...mapButtonsEl.children].forEach((b) => {
+      b.classList.toggle("selected", b.dataset.mapId === room.mapId);
+      b.disabled = !isHost;
+    });
+
+    if (room.gameId !== lastRenderedSettingsGameId) {
+      lastRenderedSettingsGameId = room.gameId;
+      renderGameSettings(room.gameId);
     }
+    const activeKey =
+      document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.key : null;
+    if (room.settings) {
+      [...gameSettingsRows.querySelectorAll("input[type=range]")].forEach((el) => {
+        if (el.dataset.key === activeKey) return;
+        if (room.settings[el.dataset.key] !== undefined) {
+          el.value = room.settings[el.dataset.key];
+          updateSettingRowLabel(el);
+        }
+      });
+    }
+    [...gameSettingsRows.querySelectorAll("input")].forEach((el) => (el.disabled = !isHost));
 
     btnReady.textContent = iAmReady ? "준비 취소" : "준비완료";
     btnReady.classList.toggle("active", iAmReady);
@@ -218,16 +268,48 @@
     }
   });
 
-  // ---------- Game screen ----------
+  // ---------- Game screen: view switching ----------
+  const gameViews = {
+    canvas: document.getElementById("gameView-canvas"),
+    reaction: document.getElementById("gameView-reaction"),
+    updown: document.getElementById("gameView-updown"),
+  };
+  function viewForGame(gameId) {
+    if (gameId === "tank" || gameId === "sword") return "canvas";
+    return gameId;
+  }
+  function showGameView(gameId) {
+    const target = viewForGame(gameId);
+    Object.entries(gameViews).forEach(([key, el]) => {
+      el.classList.toggle("hidden", key !== target);
+    });
+  }
+
+  const controlsHint = document.getElementById("controlsHint");
+  function updateControlsHint(gameId) {
+    if (gameId === "tank" || gameId === "sword") {
+      controlsHint.textContent =
+        "이동: W A S D　발사/공격: Space　(모바일: 조이스틱 + 발사 버튼, 좌상단 ⛶ 버튼으로 전체화면)";
+    } else if (gameId === "reaction") {
+      controlsHint.textContent = "초록색으로 바뀌면 최대한 빨리 클릭하거나 Space를 누르세요!";
+    } else if (gameId === "updown") {
+      controlsHint.textContent = "숫자를 입력하고 추측! 버튼을 눌러보세요. Enter로도 제출됩니다.";
+    } else {
+      controlsHint.textContent = "";
+    }
+  }
+
+  // ---------- Canvas game (tank / sword) ----------
   const canvas = document.getElementById("gameCanvas");
   const ctx = canvas.getContext("2d");
   const countdownOverlay = document.getElementById("countdownOverlay");
   const roundOverOverlay = document.getElementById("roundOverOverlay");
 
-  let mapData = null; // { walls, worldW, worldH, wallThick }
+  let mapData = null; // gameStart payload (walls/world size for canvas games)
   let playersInfo = []; // [{id,name,color}]
   let latestState = null;
-  let tankRadius = 16; // updated from gameStart, used to scale tank rendering
+  let tankRadius = 16;
+  let charRadius = 22;
   let bulletVisualRadius = 4;
 
   // Fixed-size viewport; the camera pans over the (larger) world instead of
@@ -253,17 +335,34 @@
   });
 
   socket.on("gameStart", (data) => {
+    currentGameId = data.gameId;
     mapData = data;
-    playersInfo = data.players;
+    playersInfo = data.players || [];
     latestState = null;
     stateBuffer.length = 0;
     camera.x = 0;
     camera.y = 0;
     tankRadius = data.tankRadius || 16;
+    charRadius = data.charRadius || 22;
     bulletVisualRadius = data.bulletRadius || 4;
     countdownOverlay.classList.add("hidden");
     roundOverOverlay.classList.add("hidden");
     btnExitPractice.classList.toggle("hidden", !isPracticeMode);
+    if (isTouchDevice) mobileControls.classList.toggle("hidden", viewForGame(currentGameId) !== "canvas");
+
+    showGameView(currentGameId);
+    updateControlsHint(currentGameId);
+
+    if (currentGameId === "reaction") {
+      reactionBox.textContent = "대기 중...";
+      reactionBox.classList.remove("go", "early");
+    } else if (currentGameId === "updown") {
+      updownMax.textContent = data.maxNumber;
+      updownInput.value = "";
+      updownFeedback.textContent = "";
+      updownHistory.innerHTML = "";
+    }
+
     showScreen("game");
   });
 
@@ -306,33 +405,75 @@
   }
 
   function interpolateState(a, b, t) {
-    const tanks = b.tanks.map((bt) => {
-      const at = a.tanks.find((x) => x.id === bt.id);
-      if (!at) return bt;
-      return {
-        id: bt.id,
-        x: lerp(at.x, bt.x, t),
-        y: lerp(at.y, bt.y, t),
-        angle: lerpAngle(at.angle, bt.angle, t),
-        alive: bt.alive,
-        lives: bt.lives,
-      };
-    });
-    const bullets = b.bullets.map((bb) => {
-      const ab = a.bullets.find((x) => x.id === bb.id);
-      if (!ab) return bb;
-      return { id: bb.id, ownerId: bb.ownerId, x: lerp(ab.x, bb.x, t), y: lerp(ab.y, bb.y, t) };
-    });
-    return { tanks, bullets };
+    const result = {};
+    if (b.tanks) {
+      result.tanks = b.tanks.map((bt) => {
+        const at = (a.tanks || []).find((x) => x.id === bt.id);
+        if (!at) return bt;
+        return {
+          id: bt.id,
+          x: lerp(at.x, bt.x, t),
+          y: lerp(at.y, bt.y, t),
+          angle: lerpAngle(at.angle, bt.angle, t),
+          alive: bt.alive,
+          lives: bt.lives,
+        };
+      });
+    }
+    if (b.fighters) {
+      result.fighters = b.fighters.map((bf) => {
+        const af = (a.fighters || []).find((x) => x.id === bf.id);
+        if (!af) return bf;
+        return {
+          id: bf.id,
+          x: lerp(af.x, bf.x, t),
+          y: lerp(af.y, bf.y, t),
+          angle: lerpAngle(af.angle, bf.angle, t),
+          alive: bf.alive,
+          lives: bf.lives,
+          swinging: bf.swinging,
+        };
+      });
+    }
+    if (b.bullets) {
+      result.bullets = b.bullets.map((bb) => {
+        const ab = (a.bullets || []).find((x) => x.id === bb.id);
+        if (!ab) return bb;
+        return { id: bb.id, ownerId: bb.ownerId, x: lerp(ab.x, bb.x, t), y: lerp(ab.y, bb.y, t) };
+      });
+    }
+    return result;
   }
 
-  socket.on("roundOver", ({ winnerId, winnerName }) => {
+  socket.on("roundOver", (data) => {
     roundOverOverlay.classList.remove("hidden");
-    if (winnerId) {
+    const { winnerId, winnerName } = data;
+    const tail = '<div class="sub">잠시 후 로비로 돌아갑니다...</div>';
+
+    if (currentGameId === "reaction") {
+      reactionBox.textContent = "";
+      reactionBox.classList.remove("go", "early");
+    }
+
+    if (currentGameId === "reaction" && data.reactionResults) {
+      const rows = data.reactionResults
+        .map((r, i) => {
+          const label = r.early ? "부정 출발" : r.ms !== null ? `${r.ms}ms` : "클릭 안 함";
+          return `<div>${i + 1}. ${escapeHtml(r.name)} — ${label}</div>`;
+        })
+        .join("");
+      roundOverOverlay.innerHTML =
+        `<div style="font-size:1.4rem">${winnerId ? escapeHtml(winnerName) + " 승리!" : "기록 없음"}</div>` +
+        `<div class="sub" style="margin-top:10px">${rows}</div>` +
+        tail;
+    } else if (currentGameId === "updown" && data.secret !== undefined) {
+      roundOverOverlay.innerHTML =
+        `<div>${escapeHtml(winnerName)} 정답!</div><div class="sub">정답은 ${data.secret} 이었습니다.</div>` + tail;
+    } else if (winnerId) {
       const p = playersInfo.find((pl) => pl.id === winnerId);
-      roundOverOverlay.innerHTML = `<div>${escapeHtml(winnerName || (p && p.name) || "?")} 승리!</div><div class="sub">잠시 후 로비로 돌아갑니다...</div>`;
+      roundOverOverlay.innerHTML = `<div>${escapeHtml(winnerName || (p && p.name) || "?")} 승리!</div>` + tail;
     } else {
-      roundOverOverlay.innerHTML = `<div>무승부</div><div class="sub">잠시 후 로비로 돌아갑니다...</div>`;
+      roundOverOverlay.innerHTML = `<div>무승부</div>` + tail;
     }
   });
 
@@ -431,7 +572,7 @@
     ctx.closePath();
     ctx.fill();
 
-    // rear weak-point marker - a hit here is a kill
+    // rear weak-point marker - a hit here costs a life
     ctx.fillStyle = "#161822";
     ctx.fillRect(-16, -12, 7, 24);
     ctx.strokeStyle = "#f1c40f";
@@ -442,6 +583,75 @@
     ctx.moveTo(-16, 1);
     ctx.lineTo(-9, 8);
     ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawFighter(f) {
+    const color = playerColor(f.id);
+    ctx.save();
+    ctx.translate(f.x, f.y);
+
+    if (!f.alive) ctx.globalAlpha = 0.25;
+
+    ctx.globalAlpha = f.alive ? 1 : 0.35;
+    ctx.fillStyle = "#cfd6e4";
+    ctx.font = "12px sans-serif";
+    ctx.textAlign = "center";
+    const nameLabel =
+      mapData && mapData.maxLives > 1 ? `${playerName(f.id)} ❤${Math.max(0, f.lives)}` : playerName(f.id);
+    ctx.fillText(nameLabel, 0, -30);
+
+    ctx.rotate(f.angle);
+    ctx.scale(charRadius / 22, charRadius / 22);
+
+    // sword swing arc (drawn under the body so the body reads on top)
+    if (f.swinging) {
+      ctx.fillStyle = "rgba(255,255,255,0.18)";
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, 56, -Math.PI / 3, Math.PI / 3);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 3;
+
+    ctx.fillStyle = color;
+    ctx.strokeStyle = "#10131a";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, 18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+
+    // facing indicator
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    ctx.beginPath();
+    ctx.moveTo(14, -6);
+    ctx.lineTo(23, 0);
+    ctx.lineTo(14, 6);
+    ctx.closePath();
+    ctx.fill();
+
+    // sword
+    ctx.strokeStyle = "#e8e8e8";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    const swordAngle = f.swinging ? Math.sin(performance.now() * 0.03) * 0.9 : 0.15;
+    ctx.save();
+    ctx.rotate(swordAngle);
+    ctx.beginPath();
+    ctx.moveTo(10, 0);
+    ctx.lineTo(46, 0);
+    ctx.stroke();
+    ctx.restore();
 
     ctx.restore();
   }
@@ -460,7 +670,7 @@
 
   function render() {
     requestAnimationFrame(render);
-    if (!screens.game.classList.contains("active") || !mapData) return;
+    if (!screens.game.classList.contains("active") || viewForGame(currentGameId) !== "canvas" || !mapData) return;
 
     const renderState = getRenderState();
 
@@ -469,13 +679,14 @@
     const viewW = canvas.width * fov;
     const viewH = canvas.height * fov;
 
-    // Follow the local player's tank, clamped so the camera never shows
+    // Follow the local player's entity, clamped so the camera never shows
     // outside the world bounds.
     if (renderState) {
-      const myTank = renderState.tanks.find((t) => t.id === myId);
-      if (myTank) {
-        const targetX = myTank.x - viewW / 2;
-        const targetY = myTank.y - viewH / 2;
+      const entities = renderState.tanks || renderState.fighters || [];
+      const mine = entities.find((e) => e.id === myId);
+      if (mine) {
+        const targetX = mine.x - viewW / 2;
+        const targetY = mine.y - viewH / 2;
         camera.x = Math.max(0, Math.min(targetX, Math.max(0, mapData.worldW - viewW)));
         camera.y = Math.max(0, Math.min(targetY, Math.max(0, mapData.worldH - viewH)));
       }
@@ -490,18 +701,62 @@
     drawWalls(mapData.walls, mapData.wallThick);
 
     if (renderState) {
-      for (const b of renderState.bullets) drawBullet(b);
-      for (const t of renderState.tanks) drawTank(t);
+      if (renderState.bullets) for (const b of renderState.bullets) drawBullet(b);
+      if (renderState.tanks) for (const t of renderState.tanks) drawTank(t);
+      if (renderState.fighters) for (const f of renderState.fighters) drawFighter(f);
     }
 
     ctx.restore();
   }
   render();
 
-  // ---------- Input ----------
+  // ---------- Reaction speed test view ----------
+  const reactionBox = document.getElementById("reactionBox");
+  reactionBox.addEventListener("click", () => {
+    if (currentGameId !== "reaction") return;
+    socket.emit("gameAction", { type: "click" });
+  });
+  socket.on("reactionGo", () => {
+    reactionBox.textContent = "지금 클릭!";
+    reactionBox.classList.remove("early");
+    reactionBox.classList.add("go");
+  });
+  socket.on("reactionEarly", ({ playerId }) => {
+    if (playerId === myId) {
+      reactionBox.textContent = "너무 빨랐어요! 대기하세요...";
+      reactionBox.classList.add("early");
+    }
+  });
+
+  // ---------- Up-down guessing view ----------
+  const updownMax = document.getElementById("updownMax");
+  const updownInput = document.getElementById("updownInput");
+  const updownSubmit = document.getElementById("updownSubmit");
+  const updownFeedback = document.getElementById("updownFeedback");
+  const updownHistory = document.getElementById("updownHistory");
+
+  function submitGuess() {
+    if (currentGameId !== "updown") return;
+    const v = Number(updownInput.value);
+    if (!Number.isFinite(v)) return;
+    socket.emit("gameAction", { type: "guess", value: v });
+  }
+  updownSubmit.addEventListener("click", submitGuess);
+  updownInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") submitGuess();
+  });
+  socket.on("updownFeedback", ({ guess, hint }) => {
+    updownFeedback.textContent = hint === "up" ? `${guess} 보다 큽니다 ⬆️` : `${guess} 보다 작습니다 ⬇️`;
+    const chip = document.createElement("span");
+    chip.className = "chip " + hint;
+    chip.textContent = `${guess} ${hint === "up" ? "⬆" : "⬇"}`;
+    updownHistory.appendChild(chip);
+  });
+
+  // ---------- Input (movement games: tank / sword) ----------
   // Movement is absolute/screen-relative: WASD (or the joystick) directly
-  // sets a direction vector, and the tank instantly faces that direction.
-  // No more "rotate, then drive forward relative to facing".
+  // sets a direction vector, and the tank/fighter instantly faces that
+  // direction. No "rotate, then drive forward relative to facing".
   const keyState = { up: false, down: false, left: false, right: false, shoot: false };
   let joyMoveX = 0;
   let joyMoveY = 0;
@@ -538,9 +793,14 @@
   };
 
   window.addEventListener("keydown", (e) => {
+    if (!screens.game.classList.contains("active")) return;
+    if (e.code === "Space" && currentGameId === "reaction") {
+      e.preventDefault();
+      socket.emit("gameAction", { type: "click" });
+      return;
+    }
     const action = KEY_MAP[e.code];
     if (!action) return;
-    if (!screens.game.classList.contains("active")) return;
     e.preventDefault();
     keyState[action] = true;
     sendInput();
@@ -603,7 +863,6 @@
 
   if (isTouchDevice) {
     btnFullscreen.classList.remove("hidden");
-    mobileControls.classList.remove("hidden");
 
     const JOY_RADIUS = 50;
     const JOY_DEADZONE = 0.15;

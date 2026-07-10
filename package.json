@@ -1,7 +1,7 @@
 {
-  "name": "tank-trouble-online",
+  "name": "minigames-online",
   "version": "1.0.0",
-  "description": "Tank Trouble style online multiplayer tank game",
+  "description": "Online multiplayer minigame hub (tank battle, sword fight, reaction test, up-down guessing)",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js"
