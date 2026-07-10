@@ -1,0 +1,16 @@
+{
+  "name": "tank-trouble-online",
+  "version": "1.0.0",
+  "description": "Tank Trouble style online multiplayer tank game",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  }
+}

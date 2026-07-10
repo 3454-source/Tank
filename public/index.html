@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tank Trouble Online</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <section id="screen-home" class="screen active">
+    <h1>🎮 Tank Trouble Online</h1>
+    <div class="card">
+      <label for="nickname">닉네임</label>
+      <input id="nickname" maxlength="12" placeholder="닉네임을 입력하세요" autocomplete="off" />
+
+      <div class="row">
+        <input id="joinCode" maxlength="4" placeholder="초대 코드" autocomplete="off" style="text-transform:uppercase" />
+        <button id="btnJoin">참가하기</button>
+      </div>
+
+      <div class="divider">또는</div>
+
+      <button id="btnCreate" class="primary">방 만들기</button>
+    </div>
+    <p id="homeError" class="error"></p>
+  </section>
+
+  <section id="screen-room" class="screen">
+    <h2>초대 코드: <span id="roomCode">----</span> <button id="btnCopy" title="복사">복사</button></h2>
+    <div id="playerList" class="player-list"></div>
+
+    <div class="map-select">
+      <h3>맵 선택</h3>
+      <div id="mapButtons" class="map-buttons"></div>
+    </div>
+
+    <div class="room-actions">
+      <button id="btnReady" class="primary">준비완료</button>
+      <button id="btnLeave">나가기</button>
+    </div>
+    <p id="roomStatus" class="status"></p>
+  </section>
+
+  <section id="screen-game" class="screen">
+    <div class="game-wrap">
+      <canvas id="gameCanvas" width="900" height="600"></canvas>
+      <div id="countdownOverlay" class="overlay hidden"></div>
+      <div id="roundOverOverlay" class="overlay hidden"></div>
+    </div>
+    <p class="controls-hint">이동: <b>W A S D</b>　발사: <b>Space</b></p>
+  </section>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
