@@ -266,3 +266,14 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   touch-action: none;
   pointer-events: auto;
 }
+
+.practice-exit {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(18, 21, 28, 0.75);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 0.8rem;
+  padding: 6px 12px;
+}

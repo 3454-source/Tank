@@ -17,6 +17,7 @@
   const joinCodeInput = document.getElementById("joinCode");
   const btnJoin = document.getElementById("btnJoin");
   const btnCreate = document.getElementById("btnCreate");
+  const btnPractice = document.getElementById("btnPractice");
   const homeError = document.getElementById("homeError");
 
   nicknameInput.value = localStorage.getItem("tt_nickname") || "";
@@ -41,6 +42,13 @@
     }
     localStorage.setItem("tt_nickname", getName());
     socket.emit("joinRoom", { code, name: getName() });
+  });
+
+  btnPractice.addEventListener("click", () => {
+    homeError.textContent = "";
+    localStorage.setItem("tt_nickname", getName());
+    isPracticeMode = true;
+    socket.emit("startPractice", { name: getName() });
   });
 
   socket.on("joinError", (msg) => {
@@ -69,6 +77,7 @@
   let currentRoom = null;
   let mapList = [];
   let iAmReady = false;
+  let isPracticeMode = false;
 
   socket.on("connect", () => {
     myId = socket.id;
@@ -100,6 +109,14 @@
     socket.emit("leaveRoom");
     currentRoom = null;
     iAmReady = false;
+    showScreen("home");
+  });
+
+  const btnExitPractice = document.getElementById("btnExitPractice");
+  btnExitPractice.addEventListener("click", () => {
+    socket.emit("leaveRoom");
+    isPracticeMode = false;
+    btnExitPractice.classList.add("hidden");
     showScreen("home");
   });
 
@@ -246,6 +263,7 @@
     bulletVisualRadius = data.bulletRadius || 4;
     countdownOverlay.classList.add("hidden");
     roundOverOverlay.classList.add("hidden");
+    btnExitPractice.classList.toggle("hidden", !isPracticeMode);
     showScreen("game");
   });
 

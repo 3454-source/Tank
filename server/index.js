@@ -147,6 +147,15 @@ io.on("connection", (socket) => {
     broadcastRoom(room);
   });
 
+  socket.on("startPractice", ({ name } = {}) => {
+    leaveRoom(socket);
+    const room = roomManager.createRoom(socket.id, sanitizeName(name));
+    room.isPractice = true;
+    socket.join(room.code);
+    socketRoom.set(socket.id, room.code);
+    startGame(room);
+  });
+
   socket.on("joinRoom", ({ code, name } = {}) => {
     const room = roomManager.getRoom(code);
     if (!room) {

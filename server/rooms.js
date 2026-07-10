@@ -55,6 +55,7 @@ class Room {
     this.lastWinner = null;
     this.game = null; // { tanks: Map, bullets: [], nextBulletId, inputs: Map }
     this.broadcastTick = 0;
+    this.isPractice = false;
   }
 
   get size() {
