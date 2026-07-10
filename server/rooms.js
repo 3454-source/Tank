@@ -1,8 +1,35 @@
 const { MAPS } = require("./maps");
 
-const COLORS = ["#e74c3c", "#3498db", "#2ecc71", "#f1c40f"];
+const COLORS = [
+  "#e74c3c",
+  "#3498db",
+  "#2ecc71",
+  "#f1c40f",
+  "#9b59b6",
+  "#1abc9c",
+  "#e67e22",
+  "#ec407a",
+];
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no O/0/I/1
-const MAX_PLAYERS = 4;
+const MAX_PLAYERS = 8;
+
+const SETTINGS_LIMITS = {
+  speedMult: { min: 0.5, max: 2, default: 1 },
+  fireRateMult: { min: 0.5, max: 2.5, default: 1 },
+  bulletSpeedMult: { min: 0.5, max: 2, default: 1 },
+};
+
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
+
+function defaultSettings() {
+  return {
+    speedMult: SETTINGS_LIMITS.speedMult.default,
+    fireRateMult: SETTINGS_LIMITS.fireRateMult.default,
+    bulletSpeedMult: SETTINGS_LIMITS.bulletSpeedMult.default,
+  };
+}
 
 function randomCode(len = 4) {
   let s = "";
@@ -18,6 +45,7 @@ class Room {
     this.hostId = hostId;
     this.players = new Map(); // id -> { id, name, color, ready, score }
     this.mapId = "maze";
+    this.settings = defaultSettings();
     this.state = "lobby"; // lobby | countdown | playing | roundover
     this.countdown = 0;
     this.countdownTimer = 0;
@@ -75,11 +103,23 @@ class Room {
     return this.players.size >= 2 && [...this.players.values()].every((p) => p.ready);
   }
 
+  setSettings(partial) {
+    if (!partial) return;
+    for (const key of Object.keys(SETTINGS_LIMITS)) {
+      if (partial[key] === undefined) continue;
+      const n = Number(partial[key]);
+      if (!Number.isFinite(n)) continue;
+      const { min, max } = SETTINGS_LIMITS[key];
+      this.settings[key] = clamp(n, min, max);
+    }
+  }
+
   toJSON() {
     return {
       code: this.code,
       hostId: this.hostId,
       mapId: this.mapId,
+      settings: this.settings,
       state: this.state,
       countdown: this.countdown,
       players: [...this.players.values()],
@@ -114,4 +154,4 @@ class RoomManager {
   }
 }
 
-module.exports = { Room, RoomManager, MAX_PLAYERS };
+module.exports = { Room, RoomManager, MAX_PLAYERS, SETTINGS_LIMITS };

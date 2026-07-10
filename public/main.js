@@ -56,6 +56,13 @@
   const btnLeave = document.getElementById("btnLeave");
   const roomStatus = document.getElementById("roomStatus");
 
+  const elSpeed = document.getElementById("setSpeed");
+  const elFireRate = document.getElementById("setFireRate");
+  const elBulletSpeed = document.getElementById("setBulletSpeed");
+  const valSpeed = document.getElementById("valSpeed");
+  const valFireRate = document.getElementById("valFireRate");
+  const valBulletSpeed = document.getElementById("valBulletSpeed");
+
   let myId = null;
   let currentRoom = null;
   let mapList = [];
@@ -109,6 +116,28 @@
     });
   }
 
+  function updateSettingLabels() {
+    valSpeed.textContent = elSpeed.value + "%";
+    valFireRate.textContent = elFireRate.value + "%";
+    valBulletSpeed.textContent = elBulletSpeed.value + "%";
+  }
+  updateSettingLabels();
+
+  function emitSettings() {
+    if (!currentRoom || currentRoom.hostId !== myId) return;
+    socket.emit("setSettings", {
+      speedMult: Number(elSpeed.value) / 100,
+      fireRateMult: Number(elFireRate.value) / 100,
+      bulletSpeedMult: Number(elBulletSpeed.value) / 100,
+    });
+  }
+  [elSpeed, elFireRate, elBulletSpeed].forEach((el) => {
+    el.addEventListener("input", () => {
+      updateSettingLabels();
+      emitSettings();
+    });
+  });
+
   socket.on("room", (room) => {
     currentRoom = room;
     const me = room.players.find((p) => p.id === myId);
@@ -137,6 +166,17 @@
       b.disabled = room.hostId !== myId;
     });
 
+    const isHost = room.hostId === myId;
+    elSpeed.disabled = !isHost;
+    elFireRate.disabled = !isHost;
+    elBulletSpeed.disabled = !isHost;
+    if (room.settings && document.activeElement !== elSpeed && document.activeElement !== elFireRate && document.activeElement !== elBulletSpeed) {
+      elSpeed.value = Math.round(room.settings.speedMult * 100);
+      elFireRate.value = Math.round(room.settings.fireRateMult * 100);
+      elBulletSpeed.value = Math.round(room.settings.bulletSpeedMult * 100);
+      updateSettingLabels();
+    }
+
     btnReady.textContent = iAmReady ? "준비 취소" : "준비완료";
     btnReady.classList.toggle("active", iAmReady);
 
@@ -163,11 +203,25 @@
   let mapData = null; // { walls, worldW, worldH, wallThick }
   let playersInfo = []; // [{id,name,color}]
   let latestState = null;
+  let tankRadius = 16; // updated from gameStart, used to scale tank rendering
+  let bulletVisualRadius = 4;
 
   // Fixed-size viewport; the camera pans over the (larger) world instead of
   // shrinking the whole map down to fit, so the arena can be big without
   // making tanks tiny on screen.
   const camera = { x: 0, y: 0 };
+
+  // Personal FOV/zoom preference (client-only, saved per browser).
+  const elFov = document.getElementById("setFov");
+  const valFov = document.getElementById("valFov");
+  let fovPercent = Number(localStorage.getItem("tt_fov")) || 100;
+  elFov.value = fovPercent;
+  valFov.textContent = fovPercent + "%";
+  elFov.addEventListener("input", () => {
+    fovPercent = Number(elFov.value);
+    valFov.textContent = fovPercent + "%";
+    localStorage.setItem("tt_fov", String(fovPercent));
+  });
 
   socket.on("countdown", (n) => {
     countdownOverlay.classList.remove("hidden");
@@ -181,6 +235,8 @@
     stateBuffer.length = 0;
     camera.x = 0;
     camera.y = 0;
+    tankRadius = data.tankRadius || 16;
+    bulletVisualRadius = data.bulletRadius || 4;
     countdownOverlay.classList.add("hidden");
     roundOverOverlay.classList.add("hidden");
     showScreen("game");
@@ -315,6 +371,7 @@
     ctx.fillText(playerName(t.id), 0, -26);
 
     ctx.rotate(t.angle);
+    ctx.scale(tankRadius / 16, tankRadius / 16);
 
     ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
     ctx.shadowBlur = 6;
@@ -368,7 +425,7 @@
     ctx.fillStyle = color;
     ctx.shadowColor = color;
     ctx.shadowBlur = 8;
-    ctx.arc(b.x, b.y, 4.5, 0, Math.PI * 2);
+    ctx.arc(b.x, b.y, bulletVisualRadius, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
@@ -379,20 +436,26 @@
 
     const renderState = getRenderState();
 
+    // fov > 1 zooms out (shows more of the map), fov < 1 zooms in.
+    const fov = fovPercent / 100;
+    const viewW = canvas.width * fov;
+    const viewH = canvas.height * fov;
+
     // Follow the local player's tank, clamped so the camera never shows
     // outside the world bounds.
     if (renderState) {
       const myTank = renderState.tanks.find((t) => t.id === myId);
       if (myTank) {
-        const targetX = myTank.x - canvas.width / 2;
-        const targetY = myTank.y - canvas.height / 2;
-        camera.x = Math.max(0, Math.min(targetX, Math.max(0, mapData.worldW - canvas.width)));
-        camera.y = Math.max(0, Math.min(targetY, Math.max(0, mapData.worldH - canvas.height)));
+        const targetX = myTank.x - viewW / 2;
+        const targetY = myTank.y - viewH / 2;
+        camera.x = Math.max(0, Math.min(targetX, Math.max(0, mapData.worldW - viewW)));
+        camera.y = Math.max(0, Math.min(targetY, Math.max(0, mapData.worldH - viewH)));
       }
     }
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
+    ctx.scale(1 / fov, 1 / fov);
     ctx.translate(-camera.x, -camera.y);
 
     drawBackgroundGrid(mapData.worldW, mapData.worldH);

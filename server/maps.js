@@ -21,12 +21,18 @@ function borderWalls() {
   ];
 }
 
-// Corner spawn points, facing roughly toward the center of the arena.
+// Spawn points, facing roughly toward the center of the arena. The 4 corners
+// come first so 2-4 player games spawn exactly where they used to; the 4
+// edge-midpoints are only used once a lobby grows past 4 players (up to 8).
 const SPAWNS = [
   { x: 70, y: 70, angle: Math.PI / 4 },
   { x: DESIGN_W - 70, y: 70, angle: (Math.PI * 3) / 4 },
   { x: DESIGN_W - 70, y: DESIGN_H - 70, angle: (-Math.PI * 3) / 4 },
   { x: 70, y: DESIGN_H - 70, angle: -Math.PI / 4 },
+  { x: DESIGN_W / 2, y: 70, angle: Math.PI / 2 },
+  { x: DESIGN_W - 70, y: DESIGN_H / 2, angle: Math.PI },
+  { x: DESIGN_W / 2, y: DESIGN_H - 70, angle: -Math.PI / 2 },
+  { x: 70, y: DESIGN_H / 2, angle: 0 },
 ].map((s) => ({ x: s.x * SCALE, y: s.y * SCALE, angle: s.angle }));
 
 const MAPS = {

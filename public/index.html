@@ -35,6 +35,30 @@
       <div id="mapButtons" class="map-buttons"></div>
     </div>
 
+    <div class="settings-panel">
+      <h3>⚙️ 게임 설정 (방장 전용)</h3>
+      <div class="setting-row">
+        <label><span>탱크 속도</span><span id="valSpeed">100%</span></label>
+        <input type="range" id="setSpeed" min="50" max="200" value="100" step="5" />
+      </div>
+      <div class="setting-row">
+        <label><span>연사 속도</span><span id="valFireRate">100%</span></label>
+        <input type="range" id="setFireRate" min="50" max="250" value="100" step="5" />
+      </div>
+      <div class="setting-row">
+        <label><span>총알 속도</span><span id="valBulletSpeed">100%</span></label>
+        <input type="range" id="setBulletSpeed" min="50" max="200" value="100" step="5" />
+      </div>
+    </div>
+
+    <div class="settings-panel">
+      <h3>🔍 내 화면 설정</h3>
+      <div class="setting-row">
+        <label><span>시야 범위 (FOV)</span><span id="valFov">100%</span></label>
+        <input type="range" id="setFov" min="70" max="180" value="100" step="5" />
+      </div>
+    </div>
+
     <div class="room-actions">
       <button id="btnReady" class="primary">준비완료</button>
       <button id="btnLeave">나가기</button>

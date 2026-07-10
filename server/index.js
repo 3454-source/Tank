@@ -49,6 +49,8 @@ function startGame(room) {
     worldW: WORLD_W,
     worldH: WORLD_H,
     wallThick: WALL_THICK,
+    tankRadius: physics.TANK_RADIUS,
+    bulletRadius: physics.BULLET_RADIUS,
     players: players.map((p) => ({ id: p.id, name: p.name, color: p.color })),
   });
 }
@@ -96,10 +98,11 @@ function updateGame(room, dt) {
   const map = MAPS[room.mapId] || MAPS.maze;
   const walls = map.walls;
 
+  const { speedMult, fireRateMult, bulletSpeedMult } = room.settings;
   for (const tank of g.tanks.values()) {
     const input = g.inputs.get(tank.id);
-    physics.updateTank(tank, input, dt, walls, WALL_THICK);
-    g.nextBulletId = physics.tryShoot(tank, input, now, g.bullets, g.nextBulletId);
+    physics.updateTank(tank, input, dt, walls, WALL_THICK, speedMult);
+    g.nextBulletId = physics.tryShoot(tank, input, now, g.bullets, g.nextBulletId, fireRateMult, bulletSpeedMult);
   }
   physics.resolveTankTank([...g.tanks.values()]);
 
@@ -177,6 +180,15 @@ io.on("connection", (socket) => {
     if (room.state !== "lobby") return;
     if (!MAPS[mapId]) return;
     room.mapId = mapId;
+    broadcastRoom(room);
+  });
+
+  socket.on("setSettings", (settings) => {
+    const room = getMyRoom(socket);
+    if (!room) return;
+    if (room.hostId !== socket.id) return;
+    if (room.state !== "lobby") return;
+    room.setSettings(settings);
     broadcastRoom(room);
   });
 

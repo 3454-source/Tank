@@ -1,15 +1,17 @@
-const TANK_RADIUS = 16;
-const BULLET_RADIUS = 4;
+const TANK_RADIUS = 22;
+const BULLET_RADIUS = 5;
 
 // Movement responds instantly to input (no accel/brake ramp) so driving
-// feels direct rather than floaty.
-const TANK_SPEED = 210; // px/s forward
-const TANK_REVERSE_SPEED = 140; // px/s backward
+// feels direct rather than floaty. Speed/fire-rate/bullet-speed are base
+// values that the room host can scale via per-room multipliers.
+const BASE_TANK_SPEED = 210; // px/s forward
+const BASE_TANK_REVERSE_SPEED = 140; // px/s backward
 const TANK_TURN_SPEED = 3.0; // rad/s
 
-const BULLET_SPEED = 420; // px/s
+const BASE_BULLET_SPEED = 420; // px/s
 const MAX_BOUNCES = 4;
-const SHOOT_COOLDOWN_MS = 450;
+const BASE_SHOOT_COOLDOWN_MS = 450;
+const MIN_SHOOT_COOLDOWN_MS = 120;
 const MAX_BULLETS_PER_TANK = 3;
 const BULLET_LIFETIME_MS = 9000;
 
@@ -76,7 +78,7 @@ function resolveTankTank(tanks) {
   }
 }
 
-function updateTank(tank, input, dt, walls, wallThick) {
+function updateTank(tank, input, dt, walls, wallThick, speedMult = 1) {
   if (!tank.alive) return;
   input = input || {};
 
@@ -86,8 +88,8 @@ function updateTank(tank, input, dt, walls, wallThick) {
   tank.angle += angularVelocity * dt;
 
   let speed = 0;
-  if (input.up && !input.down) speed = TANK_SPEED;
-  else if (input.down && !input.up) speed = -TANK_REVERSE_SPEED;
+  if (input.up && !input.down) speed = BASE_TANK_SPEED * speedMult;
+  else if (input.down && !input.up) speed = -BASE_TANK_REVERSE_SPEED * speedMult;
 
   if (speed !== 0) {
     tank.x += Math.cos(tank.angle) * speed * dt;
@@ -97,14 +99,16 @@ function updateTank(tank, input, dt, walls, wallThick) {
   resolveCircleWalls(tank, TANK_RADIUS, walls, wallThick);
 }
 
-function tryShoot(tank, input, now, bullets, nextBulletId) {
+function tryShoot(tank, input, now, bullets, nextBulletId, fireRateMult = 1, bulletSpeedMult = 1) {
   if (!tank.alive) return nextBulletId;
   if (!input || !input.shoot) return nextBulletId;
-  if (now - (tank.lastShotAt || 0) < SHOOT_COOLDOWN_MS) return nextBulletId;
+  const cooldown = Math.max(MIN_SHOOT_COOLDOWN_MS, BASE_SHOOT_COOLDOWN_MS / fireRateMult);
+  if (now - (tank.lastShotAt || 0) < cooldown) return nextBulletId;
   const liveCount = bullets.filter((b) => b.ownerId === tank.id).length;
   if (liveCount >= MAX_BULLETS_PER_TANK) return nextBulletId;
 
   tank.lastShotAt = now;
+  const bulletSpeed = BASE_BULLET_SPEED * bulletSpeedMult;
   const muzzle = TANK_RADIUS + BULLET_RADIUS + 2;
   const id = nextBulletId;
   bullets.push({
@@ -112,8 +116,8 @@ function tryShoot(tank, input, now, bullets, nextBulletId) {
     ownerId: tank.id,
     x: tank.x + Math.cos(tank.angle) * muzzle,
     y: tank.y + Math.sin(tank.angle) * muzzle,
-    vx: Math.cos(tank.angle) * BULLET_SPEED,
-    vy: Math.sin(tank.angle) * BULLET_SPEED,
+    vx: Math.cos(tank.angle) * bulletSpeed,
+    vy: Math.sin(tank.angle) * bulletSpeed,
     bounces: 0,
     createdAt: now,
   });
