@@ -59,9 +59,11 @@
   const elSpeed = document.getElementById("setSpeed");
   const elFireRate = document.getElementById("setFireRate");
   const elBulletSpeed = document.getElementById("setBulletSpeed");
+  const elLives = document.getElementById("setLives");
   const valSpeed = document.getElementById("valSpeed");
   const valFireRate = document.getElementById("valFireRate");
   const valBulletSpeed = document.getElementById("valBulletSpeed");
+  const valLives = document.getElementById("valLives");
 
   let myId = null;
   let currentRoom = null;
@@ -120,6 +122,7 @@
     valSpeed.textContent = elSpeed.value + "%";
     valFireRate.textContent = elFireRate.value + "%";
     valBulletSpeed.textContent = elBulletSpeed.value + "%";
+    valLives.textContent = elLives.value;
   }
   updateSettingLabels();
 
@@ -129,9 +132,10 @@
       speedMult: Number(elSpeed.value) / 100,
       fireRateMult: Number(elFireRate.value) / 100,
       bulletSpeedMult: Number(elBulletSpeed.value) / 100,
+      maxLives: Number(elLives.value),
     });
   }
-  [elSpeed, elFireRate, elBulletSpeed].forEach((el) => {
+  [elSpeed, elFireRate, elBulletSpeed, elLives].forEach((el) => {
     el.addEventListener("input", () => {
       updateSettingLabels();
       emitSettings();
@@ -170,10 +174,13 @@
     elSpeed.disabled = !isHost;
     elFireRate.disabled = !isHost;
     elBulletSpeed.disabled = !isHost;
-    if (room.settings && document.activeElement !== elSpeed && document.activeElement !== elFireRate && document.activeElement !== elBulletSpeed) {
+    elLives.disabled = !isHost;
+    const settingsEls = [elSpeed, elFireRate, elBulletSpeed, elLives];
+    if (room.settings && !settingsEls.includes(document.activeElement)) {
       elSpeed.value = Math.round(room.settings.speedMult * 100);
       elFireRate.value = Math.round(room.settings.fireRateMult * 100);
       elBulletSpeed.value = Math.round(room.settings.bulletSpeedMult * 100);
+      elLives.value = room.settings.maxLives;
       updateSettingLabels();
     }
 
@@ -290,6 +297,7 @@
         y: lerp(at.y, bt.y, t),
         angle: lerpAngle(at.angle, bt.angle, t),
         alive: bt.alive,
+        lives: bt.lives,
       };
     });
     const bullets = b.bullets.map((bb) => {
@@ -363,12 +371,14 @@
       ctx.globalAlpha = 0.25;
     }
 
-    // name tag
+    // name tag (with remaining lives, when the room uses more than 1)
     ctx.globalAlpha = t.alive ? 1 : 0.35;
     ctx.fillStyle = "#cfd6e4";
     ctx.font = "12px sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(playerName(t.id), 0, -26);
+    const nameLabel =
+      mapData && mapData.maxLives > 1 ? `${playerName(t.id)} ❤${Math.max(0, t.lives)}` : playerName(t.id);
+    ctx.fillText(nameLabel, 0, -26);
 
     ctx.rotate(t.angle);
     ctx.scale(tankRadius / 16, tankRadius / 16);

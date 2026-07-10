@@ -155,10 +155,10 @@ function updateBullet(bullet, dt, walls, wallThick) {
   }
 }
 
-// Returns "none" | "block" | "kill".
+// Returns "none" | "block" | "hit".
 // A bullet never affects the tank that fired it. Otherwise, a hit on the
 // front half (the armored side, facing the barrel) is blocked by the armor,
-// while a hit on the back half is a kill.
+// while a hit on the back half costs the tank a life.
 function bulletTankInteraction(bullet, tank) {
   if (!tank.alive) return "none";
   if (bullet.ownerId === tank.id) return "none";
@@ -170,7 +170,7 @@ function bulletTankInteraction(bullet, tank) {
   const fx = Math.cos(tank.angle);
   const fy = Math.sin(tank.angle);
   const dot = fx * dx + fy * dy;
-  return dot > 0 ? "block" : "kill";
+  return dot > 0 ? "block" : "hit";
 }
 
 module.exports = {

@@ -22,6 +22,7 @@ function broadcastRoom(room) {
 
 function startGame(room) {
   const map = MAPS[room.mapId] || MAPS.maze;
+  const maxLives = room.settings.maxLives;
   const tanks = new Map();
   const players = [...room.players.values()];
   players.forEach((p, i) => {
@@ -33,6 +34,7 @@ function startGame(room) {
       angle: spawn.angle,
       alive: true,
       lastShotAt: 0,
+      lives: maxLives,
     });
   });
   room.game = {
@@ -51,6 +53,7 @@ function startGame(room) {
     wallThick: WALL_THICK,
     tankRadius: physics.TANK_RADIUS,
     bulletRadius: physics.BULLET_RADIUS,
+    maxLives,
     players: players.map((p) => ({ id: p.id, name: p.name, color: p.color })),
   });
 }
@@ -63,6 +66,7 @@ function serializeGame(room) {
       y: t.y,
       angle: t.angle,
       alive: t.alive,
+      lives: t.lives,
     })),
     bullets: room.game.bullets.map((b) => ({ id: b.id, x: b.x, y: b.y, ownerId: b.ownerId })),
   };
@@ -117,8 +121,9 @@ function updateGame(room, dt) {
     for (const tank of g.tanks.values()) {
       if (bullet.dead) break;
       const result = physics.bulletTankInteraction(bullet, tank);
-      if (result === "kill") {
-        tank.alive = false;
+      if (result === "hit") {
+        tank.lives -= 1;
+        if (tank.lives <= 0) tank.alive = false;
         bullet.dead = true;
       } else if (result === "block") {
         bullet.dead = true;

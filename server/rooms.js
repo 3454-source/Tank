@@ -17,6 +17,7 @@ const SETTINGS_LIMITS = {
   speedMult: { min: 0.5, max: 2, default: 1 },
   fireRateMult: { min: 0.5, max: 2.5, default: 1 },
   bulletSpeedMult: { min: 0.5, max: 2, default: 1 },
+  maxLives: { min: 1, max: 20, default: 1, integer: true },
 };
 
 function clamp(v, min, max) {
@@ -24,11 +25,11 @@ function clamp(v, min, max) {
 }
 
 function defaultSettings() {
-  return {
-    speedMult: SETTINGS_LIMITS.speedMult.default,
-    fireRateMult: SETTINGS_LIMITS.fireRateMult.default,
-    bulletSpeedMult: SETTINGS_LIMITS.bulletSpeedMult.default,
-  };
+  const settings = {};
+  for (const key of Object.keys(SETTINGS_LIMITS)) {
+    settings[key] = SETTINGS_LIMITS[key].default;
+  }
+  return settings;
 }
 
 function randomCode(len = 4) {
@@ -109,8 +110,10 @@ class Room {
       if (partial[key] === undefined) continue;
       const n = Number(partial[key]);
       if (!Number.isFinite(n)) continue;
-      const { min, max } = SETTINGS_LIMITS[key];
-      this.settings[key] = clamp(n, min, max);
+      const { min, max, integer } = SETTINGS_LIMITS[key];
+      let v = clamp(n, min, max);
+      if (integer) v = Math.round(v);
+      this.settings[key] = v;
     }
   }
 
