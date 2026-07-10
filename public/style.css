@@ -277,3 +277,18 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   font-size: 0.8rem;
   padding: 6px 12px;
 }
+
+.fullscreen-btn {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 8px;
+  background: rgba(18, 21, 28, 0.75);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 1.1rem;
+  line-height: 1;
+}

@@ -558,6 +558,42 @@
     sendInput();
   });
 
+  // ---------- Fullscreen (mainly useful on mobile) ----------
+  const btnFullscreen = document.getElementById("btnFullscreen");
+
+  function requestFullscreen() {
+    const el = document.documentElement;
+    const fn = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    if (!fn) return;
+    try {
+      Promise.resolve(fn.call(el)).catch(() => {});
+    } catch (e) {
+      /* fullscreen unsupported/blocked, ignore */
+    }
+  }
+  function exitFullscreen() {
+    const fn = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+    if (!fn) return;
+    try {
+      Promise.resolve(fn.call(document)).catch(() => {});
+    } catch (e) {
+      /* ignore */
+    }
+  }
+  function isFullscreen() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+  }
+  function updateFullscreenButton() {
+    btnFullscreen.textContent = isFullscreen() ? "⛶✕" : "⛶";
+  }
+  btnFullscreen.addEventListener("click", () => {
+    if (isFullscreen()) exitFullscreen();
+    else requestFullscreen();
+  });
+  ["fullscreenchange", "webkitfullscreenchange", "msfullscreenchange"].forEach((ev) =>
+    document.addEventListener(ev, updateFullscreenButton)
+  );
+
   // ---------- Mobile touch controls (virtual joystick + fire button) ----------
   const isTouchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
   const mobileControls = document.getElementById("mobileControls");
@@ -566,6 +602,7 @@
   const fireButton = document.getElementById("fireButton");
 
   if (isTouchDevice) {
+    btnFullscreen.classList.remove("hidden");
     mobileControls.classList.remove("hidden");
 
     const JOY_RADIUS = 50;

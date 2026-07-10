@@ -13,7 +13,6 @@ const BASE_BULLET_SPEED = 420; // px/s
 const MAX_BOUNCES = 4;
 const BASE_SHOOT_COOLDOWN_MS = 450;
 const MIN_SHOOT_COOLDOWN_MS = 120;
-const MAX_BULLETS_PER_TANK = 3;
 const BULLET_LIFETIME_MS = 9000;
 
 function closestPointOnSegment(px, py, x1, y1, x2, y2) {
@@ -103,8 +102,6 @@ function tryShoot(tank, input, now, bullets, nextBulletId, fireRateMult = 1, bul
   if (!input || !input.shoot) return nextBulletId;
   const cooldown = Math.max(MIN_SHOOT_COOLDOWN_MS, BASE_SHOOT_COOLDOWN_MS / fireRateMult);
   if (now - (tank.lastShotAt || 0) < cooldown) return nextBulletId;
-  const liveCount = bullets.filter((b) => b.ownerId === tank.id).length;
-  if (liveCount >= MAX_BULLETS_PER_TANK) return nextBulletId;
 
   tank.lastShotAt = now;
   const bulletSpeed = BASE_BULLET_SPEED * bulletSpeedMult;
